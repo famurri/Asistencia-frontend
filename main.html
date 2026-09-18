@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Asistencia Universitaria</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .card {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      max-width: 550px;
+      border: 1px solid #e2e8f0;
+    }
+    h1 { margin-top: 0; color: #1e293b; font-size: 24px; }
+    p { color: #64748b; line-height: 1.6; font-size: 16px; }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 24px;
+      background: #2563eb;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .step {
+      background: #f1f5f9;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 15px;
+      font-weight: 500;
+      font-size: 14px;
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div style="font-size: 48px; margin-bottom: 15px;">🎓</div>
+    <h1>Sistema de Asistencia Universitaria</h1>
+    <p>
+      El sistema ahora cuenta con <strong>Base de Datos SQLite</strong>, <strong>Backend en Node.js</strong> y <strong>Exportación de Planillas a Excel (.xlsx)</strong>.
+    </p>
+    <div class="step">
+      👉 Para iniciar la aplicación completa, haz doble clic en el archivo <strong>iniciar.bat</strong> que se encuentra en esta carpeta.
+    </div>
+    <a href="http://localhost:3000" class="btn">Abrir Aplicación (si ya está iniciada)</a>
+  </div>
+  <script>
+    // Si ya se está sirviendo por HTTP en localhost, redirigir automáticamente a /
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>

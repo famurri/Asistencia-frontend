@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Asistencia Universitaria</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Librería de escáner QR desde cámara web/móvil -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Barra de Navegación -->
+  <nav class="navbar">
+    <div class="brand">
+      <span>🎓</span>
+      <span id="navTitulo">Asistencia Universitaria</span>
+    </div>
+    <div class="nav-right">
+      <!-- Botones de pestañas docentes (Ocultas hasta que el docente se autentique) -->
+      <div id="navTabsDocente" class="nav-tabs" style="display: none;">
+        <button class="nav-tab active" onclick="cambiarPestanaDocente('proyector')">
+          <span>📽️</span> Proyector QR
+        </button>
+        <button class="nav-tab" onclick="cambiarPestanaDocente('nomina')">
+          <span>📋</span> Nómina
+        </button>
+        <button class="nav-tab" onclick="cambiarPestanaDocente('cursos')">
+          <span>👥</span> Cursos
+        </button>
+        <button class="nav-tab" onclick="cambiarPestanaDocente('reportes')">
+          <span>📊</span> Reportes Excel
+        </button>
+      </div>
+
+      <!-- Botón de acceso / salida docente -->
+      <button id="btnAccesoDocente" class="btn btn-secondary btn-sm" onclick="toggleAccesoDocente()">
+        🔐 Acceso Docente
+      </button>
+    </div>
+  </nav>
+
+  <!-- ======================================================= -->
+  <!-- 1. VISTA DEL ALUMNO (PANTALLA PRINCIPAL POR DEFECTO)   -->
+  <!-- ======================================================= -->
+  <div id="seccionAlumno" class="container">
+    <div class="alumno-card-container">
+      <div class="alumno-card">
+        
+        <!-- PASO 1: Identificación con Legajo / DNI -->
+        <div id="pasoAlumnoIdentificacion" class="alumno-step active">
+          <div style="font-size: 44px; margin-bottom: 0.5rem;">📱</div>
+          <h2>Registro de Asistencia</h2>
+          <p>Ingresa tu número de DNI o Legajo para identificarte y habilitar la cámara.</p>
+
+          <div class="form-field">
+            <label for="inputLegajoAlumno">DNI o Legajo Universitario:</label>
+            <input type="text" id="inputLegajoAlumno" placeholder="Ej: 42123456" 
+                   onkeypress="if(event.key==='Enter') validarIdentidadAlumno()" 
+                   style="font-size: 1.1rem; text-align: center; font-weight: bold; letter-spacing: 1px;">
+          </div>
+
+          <!-- Selector opcional si hay varias materias activas simultáneamente -->
+          <div id="campoSeleccionMateriaAlumno" class="form-field" style="display: none;">
+            <label for="selectMateriaAlumno">Materia:</label>
+            <select id="selectMateriaAlumno"></select>
+          </div>
+
+          <div id="alertaAlumnoPaso1" style="display: none; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;"></div>
+
+          <button class="btn btn-primary btn-lg" style="width: 100%;" onclick="validarIdentidadAlumno()">
+            Continuar hacia la Cámara 📷
+          </button>
+        </div>
+
+        <!-- PASO 2: Escaneo del QR en Pantalla -->
+        <div id="pasoAlumnoCamara" class="alumno-step">
+          <h3 id="textoSaludoAlumno" style="color: #1e293b; margin-bottom: 0.3rem;"></h3>
+          <p id="textoMateriaAlumno" style="color: #64748b; font-size: 0.88rem; margin-bottom: 0.8rem;"></p>
+
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 0.6rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 0.8rem;">
+            Apunta la cámara al <strong>código QR proyectado en el aula</strong>.
+          </div>
+
+          <div id="reader-alumno"></div>
+
+          <div id="alertaAlumnoScan" style="display: none; padding: 0.75rem; border-radius: 8px; margin: 0.8rem 0; font-size: 0.9rem; font-weight: 600;"></div>
+
+          <button class="btn btn-secondary" style="width: 100%;" onclick="cancelarEscaneoAlumno()">
+            ← Volver / Cambiar DNI
+          </button>
+        </div>
+
+        <!-- PASO 3: Confirmación de Éxito -->
+        <div id="pasoAlumnoExito" class="alumno-step">
+          <div style="font-size: 60px; color: #10b981; margin-bottom: 0.5rem;">✅</div>
+          <h2 style="color: #065f46;">¡Presente Registrado!</h2>
+          <p style="color: #047857; font-size: 1rem; margin-bottom: 1.5rem;">
+            Tu asistencia ha sido guardada correctamente en la clase de hoy.
+          </p>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem; text-align: left;">
+            <div style="font-size: 0.85rem; color: #64748b;">Alumno:</div>
+            <div id="exitoNombreAlumno" style="font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.5rem;"></div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.88rem;">
+              <span style="color: #64748b;">DNI/Legajo: <strong id="exitoDniAlumno" style="color: #0f172a;"></strong></span>
+              <span style="color: #64748b;">Hora: <strong id="exitoHoraAlumno" style="color: #059669;"></strong></span>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%;" onclick="reiniciarPortalAlumno()">
+            Listo / Nuevo Registro
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- 2. PANEL DEL DOCENTE (HABILITADO TRAS CONTRASEÑA)      -->
+  <!-- ======================================================= -->
+  <div id="seccionDocente" class="container" style="display: none;">
+
+    <!-- PESTAÑA DOCENTE 1: PROYECTOR QR DINÁMICO -->
+    <div id="tabDocente-proyector" class="tab-content active">
+      
+      <div class="top-bar">
+        <div class="form-group-inline">
+          <label for="selectCursoProyector">Curso / Materia:</label>
+          <select id="selectCursoProyector" onchange="cambioCursoProyector()"></select>
+        </div>
+
+        <div class="form-group-inline">
+          <label for="fechaProyector">Fecha:</label>
+          <input type="date" id="fechaProyector" onchange="cambioCursoProyector()">
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btnHabilitarAsistencia" class="btn btn-success" onclick="toggleHabilitarSesion()">
+            ▶️ Iniciar Proyector QR
+          </button>
+          <button class="btn btn-secondary" onclick="togglePantallaCompleta()">
+            ⛶ Pantalla Completa
+          </button>
+        </div>
+      </div>
+
+      <!-- Pantalla del Proyector y Feed en Vivo -->
+      <div class="proyector-container" id="contenedorProyectorCompleto">
+        
+        <!-- Pantalla Central con el QR Gigante -->
+        <div class="proyector-screen">
+          <h2 id="tituloProyectorMateria" style="color: #0f172a; font-size: 1.4rem; margin-bottom: 0.2rem;">
+            Selecciona una materia y presiona "Iniciar Proyector QR"
+          </h2>
+          <p id="subtituloProyectorFecha" style="color: #64748b; font-size: 0.95rem;">
+            El código cambiará de inmediato tras cada escaneo para evitar que lo compartan.
+          </p>
+
+          <div style="background: #f1f5f9; padding: 0.6rem 1.2rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.95rem; color: #1e293b;">
+            📲 <strong>Alumnos:</strong> ingresen desde su celular a: <span id="urlParaAlumnos" style="color: #2563eb; font-weight: bold;"></span>
+          </div>
+
+          <!-- Caja del QR -->
+          <div id="boxQrProyector" class="qr-box" style="display: none;">
+            <img id="imgQrProyector" src="" alt="QR Proyector">
+          </div>
+
+          <!-- Mensaje cuando la sesión está pausada -->
+          <div id="boxPausadoProyector" style="padding: 3rem 1rem; color: #64748b;">
+            <div style="font-size: 50px; margin-bottom: 0.8rem;">⏸️</div>
+            <div style="font-size: 1.1rem; font-weight: 600;">Toma de asistencia en pausa</div>
+            <div style="font-size: 0.9rem; margin-top: 0.3rem;">Presiona <strong>"Iniciar Proyector QR"</strong> para proyectar el código a los alumnos.</div>
+          </div>
+
+          <!-- Barra y cronómetro regresivo de 60 segundos -->
+          <div id="boxTimerProyector" style="display: none;">
+            <div class="timer-bar-container">
+              <div id="timerBarFill" class="timer-bar-fill"></div>
+            </div>
+            <div style="font-size: 0.85rem; color: #64748b; font-weight: 600;">
+              Rotación automática en: <span id="contadorSegundosRestantes" style="color: #2563eb; font-weight: bold;">60</span>s
+            </div>
+          </div>
+
+          <div class="security-badge" id="badgeSeguridad" style="display: none;">
+            🛡️ Código de Uso Único Anti-WhatsApp: Se regenera al instante con cada presente
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Alumnos que van dando el presente en vivo -->
+        <div class="live-feed-card">
+          <div class="live-feed-header">
+            <h3 style="font-size: 1rem; font-weight: 700;">👥 Presentes en Vivo</h3>
+            <span id="badgeTotalPresentesVivo" class="badge badge-presente">0 Alumnos</span>
+          </div>
+          <div id="listaPresentesVivo" class="live-feed-list">
+            <div style="text-align: center; color: #94a3b8; padding: 2rem 0; font-size: 0.9rem;">
+              Los alumnos registrados aparecerán aquí en tiempo real...
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- PESTAÑA DOCENTE 2: NÓMINA DEL DÍA Y MARCACIÓN MANUAL -->
+    <div id="tabDocente-nomina" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>Nómina y Marcación Manual de la Clase</h3>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-secondary btn-sm" onclick="recargarNominaDia()">🔄 Actualizar</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>DNI / Legajo</th>
+                  <th>Alumno</th>
+                  <th>Estado</th>
+                  <th>Hora Registro</th>
+                  <th>Método</th>
+                  <th>Cambiar Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tablaNominaDocenteCuerpo">
+                <!-- Se puebla dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESTAÑA DOCENTE 3: GESTIÓN DE CURSOS Y ALUMNOS -->
+    <div id="tabDocente-cursos" class="tab-content">
+      <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem;">
+        
+        <!-- Cursos -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Mis Cursos</h3>
+            <button class="btn btn-primary btn-sm" onclick="abrirModal('modalNuevoCurso')">+ Nuevo</button>
+          </div>
+          <div class="card-body" style="padding: 0;">
+            <div id="listaCursosDocente"></div>
+          </div>
+        </div>
+
+        <!-- Alumnos del Curso -->
+        <div class="card">
+          <div class="card-header">
+            <h3 id="tituloCursoDocenteSeleccionado">Alumnos del Curso</h3>
+            <div style="display: flex; gap: 0.4rem;">
+              <button class="btn btn-primary btn-sm" onclick="abrirModal('modalNuevoAlumno')">+ Agregar Alumno</button>
+              <button class="btn btn-secondary btn-sm" onclick="abrirModal('modalCargaMasiva')">📋 Carga Masiva (Excel)</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>DNI / Legajo</th>
+                    <th>Apellido y Nombre</th>
+                    <th>Email</th>
+                    <th style="text-align: center;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaAlumnosDocenteCuerpo">
+                  <!-- Se puebla dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- PESTAÑA DOCENTE 4: REPORTES Y EXCEL -->
+    <div id="tabDocente-reportes" class="tab-content">
+      <div class="top-bar">
+        <div class="form-group-inline">
+          <label for="selectCursoReporteDocente">Curso:</label>
+          <select id="selectCursoReporteDocente"></select>
+        </div>
+
+        <div class="form-group-inline">
+          <label for="reporteDesdeDocente">Desde:</label>
+          <input type="date" id="reporteDesdeDocente">
+        </div>
+
+        <div class="form-group-inline">
+          <label for="reporteHastaDocente">Hasta:</label>
+          <input type="date" id="reporteHastaDocente">
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="generarVistaPreviaReporteDocente()">
+            🔍 Previsualizar
+          </button>
+          <button class="btn btn-success" onclick="descargarExcelReporteDocente()">
+            📥 Descargar Planilla Excel (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 id="tituloReporteDocente">Planilla de Asistencia (Matriz por Fechas)</h3>
+          <span id="badgeReporteTotalClasesDocente" class="badge badge-noregistrado">0 Clases registradas</span>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr id="headerReporteDocenteMatriz">
+                  <th>N°</th>
+                  <th>DNI / Legajo</th>
+                  <th>Apellido y Nombre</th>
+                  <th>Total Clases</th>
+                  <th>Presentes</th>
+                  <th>Tardes</th>
+                  <th>Ausentes</th>
+                  <th>% Asistencia</th>
+                </tr>
+              </thead>
+              <tbody id="cuerpoReporteDocenteMatriz">
+                <tr>
+                  <td colspan="8" style="text-align: center; color: #64748b; padding: 2.5rem;">
+                    Selecciona el curso y período, y presiona <strong>"Previsualizar"</strong> o <strong>"Descargar Planilla Excel"</strong>.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ======================================================= -->
+  <!-- MODALES DE DIÁLOGO                                      -->
+  <!-- ======================================================= -->
+
+  <!-- Modal: Acceso / Login Docente -->
+  <div id="modalLoginDocente" class="modal-backdrop">
+    <div class="modal" style="max-width: 400px; text-align: center;">
+      <div class="modal-header">
+        <h3>🔐 Acceso Docente</h3>
+        <button class="modal-close" onclick="cerrarModal('modalLoginDocente')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 1.2rem;">
+          Ingresa tu contraseña de profesor para habilitar la toma de lista, proyectar el QR y ver los reportes.
+        </p>
+        <div class="form-field">
+          <label for="inputPasswordDocente">Contraseña:</label>
+          <input type="password" id="inputPasswordDocente" placeholder="Ingresa tu contraseña..."
+                 onkeypress="if(event.key==='Enter') autenticarDocente()" style="text-align: center; font-size: 1.1rem;">
+        </div>
+        <div id="alertaLoginDocente" style="display: none; padding: 0.6rem; border-radius: 6px; background: #fee2e2; color: #991b1b; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalLoginDocente')">Cancelar</button>
+        <button class="btn btn-primary" onclick="autenticarDocente()">Ingresar al Panel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Curso -->
+  <div id="modalNuevoCurso" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Nuevo Curso / Asignatura</h3>
+        <button class="modal-close" onclick="cerrarModal('modalNuevoCurso')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="nuevoCursoNombre">Nombre de la Materia: *</label>
+          <input type="text" id="nuevoCursoNombre" placeholder="Ej: Física II">
+        </div>
+        <div class="form-field">
+          <label for="nuevoCursoComision">Comisión / Turno:</label>
+          <input type="text" id="nuevoCursoComision" placeholder="Ej: Comisión 3B - Noche">
+        </div>
+        <div class="form-field">
+          <label for="nuevoCursoAnio">Año:</label>
+          <input type="text" id="nuevoCursoAnio">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalNuevoCurso')">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarNuevoCurso()">Guardar Curso</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo Alumno -->
+  <div id="modalNuevoAlumno" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Agregar Alumno al Curso</h3>
+        <button class="modal-close" onclick="cerrarModal('modalNuevoAlumno')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="nuevoAlumnoDni">DNI / Legajo: *</label>
+          <input type="text" id="nuevoAlumnoDni" placeholder="Ej: 42123456">
+        </div>
+        <div class="form-field">
+          <label for="nuevoAlumnoNombre">Apellido y Nombre: *</label>
+          <input type="text" id="nuevoAlumnoNombre" placeholder="Ej: Pérez, Juan">
+        </div>
+        <div class="form-field">
+          <label for="nuevoAlumnoEmail">Email (Opcional):</label>
+          <input type="text" id="nuevoAlumnoEmail" placeholder="juan.perez@universidad.edu.ar">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalNuevoAlumno')">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarNuevoAlumno()">Guardar Alumno</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Carga Masiva desde Excel -->
+  <div id="modalCargaMasiva" class="modal-backdrop">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>Carga Masiva de Alumnos (Copiar y Pegar de Excel)</h3>
+        <button class="modal-close" onclick="cerrarModal('modalCargaMasiva')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: #475569; margin-bottom: 0.8rem;">
+          Copia las columnas de tu Excel y pégalas aquí. Cada fila debe tener:
+          <br><code>DNI &nbsp;&nbsp;&nbsp;&nbsp; Apellido y Nombre &nbsp;&nbsp;&nbsp;&nbsp; Email</code> (separados por tabulación o coma).
+        </p>
+        <div class="form-field">
+          <textarea id="textoCargaMasiva" rows="10" placeholder="41234567&#9;García, Ana&#9;ana@mail.com&#10;42345678&#9;Martínez, Carlos&#9;carlos@mail.com"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalCargaMasiva')">Cancelar</button>
+        <button class="btn btn-primary" onclick="procesarCargaMasiva()">Importar Alumnos</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

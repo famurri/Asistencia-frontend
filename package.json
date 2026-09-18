@@ -1,0 +1,28 @@
+{
+  "name": "asistencia-frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/famurri/Asistencia-frontend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/famurri/Asistencia-frontend/issues"
+  },
+  "homepage": "https://github.com/famurri/Asistencia-frontend#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "qrcode": "^1.5.4",
+    "sqlite3": "^6.0.1"
+  }
+}
