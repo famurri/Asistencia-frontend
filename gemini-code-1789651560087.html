@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Asistencia por QR</title>
+  <!-- Librería para escanear QR desde la cámara -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f4f7f6;
+    }
+    h1 { text-align: center; color: #333; }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-entrada { background-color: #2ec4b6; color: white; }
+    .btn-salida { background-color: #e71d36; color: white; }
+    .btn-export { background-color: #ff9f1c; color: white; margin-top: 15px; }
+    .btn.active { outline: 3px solid #000; }
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    #mensaje {
+      text-align: center;
+      margin: 15px 0;
+      font-weight: bold;
+      min-height: 24px;
+    }
+    .exito { color: #2ec4b6; }
+    .error { color: #e71d36; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th { background-color: #011627; color: white; }
+  </style>
+</head>
+<body>
+
+  <h1>Control de Asistencia</h1>
+
+  <!-- Selector de Modo -->
+  <div class="controls">
+    <button id="btnEntrada" class="btn btn-entrada active" onclick="setModo('ENTRADA')">Modo: ENTRADA</button>
+    <button id="btnSalida" class="btn btn-salida" onclick="setModo('SALIDA')">Modo: SALIDA</button>
+  </div>
+
+  <!-- Contenedor de la Cámara -->
+  <div id="reader"></div>
+
+  <!-- Mensajes de Estado -->
+  <div id="mensaje"></div>
+
+  <!-- Tabla de Asistencia -->
+  <h2>Registro del Día</h2>
+  <button class="btn btn-export" onclick="exportarCSV()">Exportar a Excel / CSV</button>
+  
+  <table id="tablaAsistencia">
+    <thead>
+      <tr>
+        <th>Fecha y Hora</th>
+        <th>ID / Nombre Alumno</th>
+        <th>Tipo</th>
+      </tr>
+    </thead>
+    <tbody id="listaAsistencia">
+      <!-- Los registros se agregan dinámicamente aquí -->
+    </tbody>
+  </table>
+
+  <script>
+    let modoActual = 'ENTRADA';
+    let asistencia = [];
+    let html5QrcodeScanner;
+    let ultimoEscaneo = "";
+    let tiempoUltimoEscaneo = 0;
+
+    // Cambiar entre Entrada y Salida
+    function setModo(modo) {
+      modoActual = modo;
+      document.getElementById('btnEntrada').classList.toggle('active', modo === 'ENTRADA');
+      document.getElementById('btnSalida').classList.toggle('active', modo === 'SALIDA');
+    }
+
+    // Función ejecutada al detectar un QR exitosamente
+    function onScanSuccess(decodedText, decodedResult) {
+      const ahora = new Date().getTime();
+
+      // Prevenir múltiples lecturas continuas del mismo QR (espera 3 segundos)
+      if (decodedText === ultimoEscaneo && (ahora - tiempoUltimoEscaneo) < 3000) {
+        return;
+      }
+
+      ultimoEscaneo = decodedText;
+      tiempoUltimoEscaneo = ahora;
+
+      const fechaHora = new Date().toLocaleString();
+      
+      // Guardar en el arreglo de datos
+      const nuevoRegistro = {
+        fechaHora: fechaHora,
+        alumno: decodedText,
+        tipo: modoActual
+      };
+      asistencia.push(nuevoRegistro);
+
+      // Mostrar mensaje en pantalla
+      const msgElem = document.getElementById('mensaje');
+      msgElem.innerText = `¡Registrado! [${modoActual}] - ${decodedText}`;
+      msgElem.className = "exito";
+
+      // Actualizar la tabla visual
+      agregarFilaTabla(nuevoRegistro);
+    }
+
+    function onScanFailure(error) {
+      // Manejo silencioso de errores de búsqueda fotograma a fotograma
+    }
+
+    // Agregar nuevo registro a la tabla HTML
+    function agregarFilaTabla(registro) {
+      const tbody = document.getElementById('listaAsistencia');
+      const fila = document.createElement('tr');
+      fila.innerHTML = `
+        <td>${registro.fechaHora}</td>
+        <td>${registro.alumno}</td>
+        <td style="color: ${registro.tipo === 'ENTRADA' ? '#2ec4b6' : '#e71d36'}; font-weight: bold;">${registro.tipo}</td>
+      `;
+      tbody.prepend(fila); // Muestra el más reciente arriba
+    }
+
+    // Descargar el historial en archivo .CSV (abrible en Excel)
+    function exportarCSV() {
+      if (asistencia.length === 0) {
+        alert("No hay registros para exportar.");
+        return;
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,Fecha y Hora,Alumno,Tipo\n";
+      asistencia.forEach(r => {
+        csvContent += `"${r.fechaHora}","${r.alumno}","${r.tipo}"\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `asistencia_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Inicializar el escáner al cargar la página
+    window.onload = () => {
+      html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", 
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+      );
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    };
+  </script>
+</body>
+</html>
