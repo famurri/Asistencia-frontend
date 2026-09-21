@@ -3,7 +3,7 @@ services:
     name: asistencia-universitaria
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install --build-from-source
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
