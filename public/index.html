@@ -51,10 +51,10 @@
         <div id="pasoAlumnoIdentificacion" class="alumno-step active">
           <div style="font-size: 44px; margin-bottom: 0.5rem;">📱</div>
           <h2>Registro de Asistencia</h2>
-          <p>Ingresa tu número de DNI o Legajo para identificarte y habilitar la cámara.</p>
+          <p>Ingresa tu número de Legajo para identificarte y habilitar la cámara.</p>
 
           <div class="form-field">
-            <label for="inputLegajoAlumno">DNI o Legajo Universitario:</label>
+            <label for="inputLegajoAlumno">Legajo Universitario:</label>
             <input type="text" id="inputLegajoAlumno" placeholder="Ej: 42123456" 
                    onkeypress="if(event.key==='Enter') validarIdentidadAlumno()" 
                    style="font-size: 1.1rem; text-align: center; font-weight: bold; letter-spacing: 1px;">
@@ -87,7 +87,7 @@
           <div id="alertaAlumnoScan" style="display: none; padding: 0.75rem; border-radius: 8px; margin: 0.8rem 0; font-size: 0.9rem; font-weight: 600;"></div>
 
           <button class="btn btn-secondary" style="width: 100%;" onclick="cancelarEscaneoAlumno()">
-            ← Volver / Cambiar DNI
+            ← Volver / Cambiar Legajo
           </button>
         </div>
 
@@ -103,7 +103,7 @@
             <div style="font-size: 0.85rem; color: #64748b;">Alumno:</div>
             <div id="exitoNombreAlumno" style="font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.5rem;"></div>
             <div style="display: flex; justify-content: space-between; font-size: 0.88rem;">
-              <span style="color: #64748b;">DNI/Legajo: <strong id="exitoDniAlumno" style="color: #0f172a;"></strong></span>
+              <span style="color: #64748b;">Legajo: <strong id="exitoLegajoAlumno" style="color: #0f172a;"></strong></span>
               <span style="color: #64748b;">Hora: <strong id="exitoHoraAlumno" style="color: #059669;"></strong></span>
             </div>
           </div>
@@ -220,7 +220,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>DNI / Legajo</th>
+                  <th>Legajo</th>
                   <th>Alumno</th>
                   <th>Estado</th>
                   <th>Hora Registro</th>
@@ -266,7 +266,7 @@
               <table>
                 <thead>
                   <tr>
-                    <th>DNI / Legajo</th>
+                    <th>Legajo</th>
                     <th>Apellido y Nombre</th>
                     <th>Email</th>
                     <th style="text-align: center;">Acción</th>
@@ -322,7 +322,7 @@
               <thead>
                 <tr id="headerReporteDocenteMatriz">
                   <th>N°</th>
-                  <th>DNI / Legajo</th>
+                  <th>Legajo</th>
                   <th>Apellido y Nombre</th>
                   <th>Total Clases</th>
                   <th>Presentes</th>
@@ -412,8 +412,8 @@
       </div>
       <div class="modal-body">
         <div class="form-field">
-          <label for="nuevoAlumnoDni">DNI / Legajo: *</label>
-          <input type="text" id="nuevoAlumnoDni" placeholder="Ej: 42123456">
+          <label for="nuevoAlumnoLegajo">Legajo: *</label>
+          <input type="text" id="nuevoAlumnoLegajo" placeholder="Ej: 42123456">
         </div>
         <div class="form-field">
           <label for="nuevoAlumnoNombre">Apellido y Nombre: *</label>
@@ -441,7 +441,7 @@
       <div class="modal-body">
         <p style="font-size: 0.9rem; color: #475569; margin-bottom: 0.8rem;">
           Copia las columnas de tu Excel y pégalas aquí. Cada fila debe tener:
-          <br><code>DNI &nbsp;&nbsp;&nbsp;&nbsp; Apellido y Nombre &nbsp;&nbsp;&nbsp;&nbsp; Email</code> (separados por tabulación o coma).
+          <br><code>Legajo &nbsp;&nbsp;&nbsp;&nbsp; Apellido y Nombre &nbsp;&nbsp;&nbsp;&nbsp; Email</code> (separados por tabulación o coma).
         </p>
         <div class="form-field">
           <textarea id="textoCargaMasiva" rows="10" placeholder="41234567&#9;García, Ana&#9;ana@mail.com&#10;42345678&#9;Martínez, Carlos&#9;carlos@mail.com"></textarea>

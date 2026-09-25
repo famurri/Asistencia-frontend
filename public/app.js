@@ -97,7 +97,7 @@ async function validarIdentidadAlumno() {
   const alerta = document.getElementById('alertaAlumnoPaso1');
 
   if (!legajo) {
-    mostrarAlertaPaso1(false, 'Por favor ingresa tu número de DNI o Legajo.');
+    mostrarAlertaPaso1(false, 'Por favor ingresa tu número de Legajo.');
     return;
   }
 
@@ -196,7 +196,7 @@ async function onScanQrAlumno(codigoDecodificado) {
 
       // Mostrar pantalla de éxito
       document.getElementById('exitoNombreAlumno').innerText = data.alumno.nombre_completo;
-      document.getElementById('exitoDniAlumno').innerText = data.alumno.legajo_dni;
+      document.getElementById('exitoLegajoAlumno').innerText = data.alumno.legajo_dni;
       document.getElementById('exitoHoraAlumno').innerText = data.alumno.hora;
       cambiarPasoAlumno('pasoAlumnoExito');
     } else {
@@ -495,7 +495,7 @@ function renderizarFeedVivo(lista) {
     <div class="live-feed-item">
       <div>
         <div class="alumno-info">${al.nombre_completo}</div>
-        <div style="font-size: 0.78rem; color: #64748b;">DNI: ${al.legajo_dni}</div>
+        <div style="font-size: 0.78rem; color: #64748b;">Legajo: ${al.legajo_dni}</div>
       </div>
       <div class="alumno-hora">${al.hora}</div>
     </div>
@@ -655,11 +655,11 @@ async function eliminarCursoDocente(id, nom) {
 async function guardarNuevoAlumno() {
   if (!cursoDocenteActivoId) return alert('Selecciona un curso primero.');
 
-  const dni = document.getElementById('nuevoAlumnoDni').value.trim();
+  const dni = document.getElementById('nuevoAlumnoLegajo').value.trim();
   const nom = document.getElementById('nuevoAlumnoNombre').value.trim();
   const email = document.getElementById('nuevoAlumnoEmail').value.trim();
 
-  if (!dni || !nom) return alert('DNI y Nombre son obligatorios');
+  if (!dni || !nom) return alert('Legajo y Nombre son obligatorios');
 
   try {
     const res = await fetch(`/api/cursos/${cursoDocenteActivoId}/alumnos`, {
@@ -670,7 +670,7 @@ async function guardarNuevoAlumno() {
     const data = await res.json();
     if (data.success) {
       cerrarModal('modalNuevoAlumno');
-      document.getElementById('nuevoAlumnoDni').value = '';
+      document.getElementById('nuevoAlumnoLegajo').value = '';
       document.getElementById('nuevoAlumnoNombre').value = '';
       document.getElementById('nuevoAlumnoEmail').value = '';
       seleccionarCursoDocente(cursoDocenteActivoId);
@@ -791,7 +791,7 @@ async function generarVistaPreviaReporteDocente() {
       document.getElementById('badgeReporteTotalClasesDocente').innerText = `${data.clases.length} Clases registradas`;
 
       const headerRow = document.getElementById('headerReporteDocenteMatriz');
-      let headerHtml = `<th>N°</th><th>DNI / Legajo</th><th>Apellido y Nombre</th>`;
+      let headerHtml = `<th>N°</th><th>Legajo</th><th>Apellido y Nombre</th>`;
 
       data.clases.forEach(c => {
         const partes = c.fecha.split('-');
