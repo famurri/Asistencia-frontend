@@ -132,7 +132,7 @@ app.post('/api/docente/habilitar-sesion', async (req, res) => {
     // Obtener o crear clase
     let clase = await db.getAsync(`SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`, [idCursoNum, fecha]);
     if (!clase) {
-      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha, asistencia_activa) VALUES (?, ?, 1)`, [idCursoNum, fecha]);
+      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha, asistencia_activa) VALUES (?, ?, 1) RETURNING id`, [idCursoNum, fecha]);
       clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [resClase.lastID]);
     } else {
       await db.runAsync(`UPDATE clases SET asistencia_activa = 1 WHERE id = ?`, [clase.id]);
@@ -454,7 +454,7 @@ app.post('/api/cursos', async (req, res) => {
       return res.status(400).json({ success: false, error: 'El nombre del curso es obligatorio' });
     }
     const result = await db.runAsync(
-      `INSERT INTO cursos (nombre, comision, anio) VALUES (?, ?, ?)`,
+      `INSERT INTO cursos (nombre, comision, anio) VALUES (?, ?, ?) RETURNING id`,
       [nombre.trim(), comision ? comision.trim() : '', anio ? parseInt(anio) : new Date().getFullYear()]
     );
     const nuevoCurso = await db.getAsync(`SELECT * FROM cursos WHERE id = ?`, [result.lastID]);
@@ -500,7 +500,7 @@ app.post('/api/cursos/:cursoId/alumnos', async (req, res) => {
     }
 
     const result = await db.runAsync(
-      `INSERT INTO alumnos (curso_id, legajo_dni, nombre_completo, email) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO alumnos (curso_id, legajo_dni, nombre_completo, email) VALUES (?, ?, ?, ?) RETURNING id`,
       [cursoId, legajo_dni.trim(), nombre_completo.trim(), email ? email.trim() : '']
     );
 
@@ -560,7 +560,7 @@ app.post('/api/cursos/:cursoId/alumnos/bulk', async (req, res) => {
       if (dni && nombre) {
         try {
           await db.runAsync(
-            `INSERT OR IGNORE INTO alumnos (curso_id, legajo_dni, nombre_completo, email) VALUES (?, ?, ?, ?)`,
+            `INSERT INTO alumnos (curso_id, legajo_dni, nombre_completo, email) VALUES (?, ?, ?, ?) ON CONFLICT (curso_id, legajo_dni) DO NOTHING`,
             [cursoId, dni, nombre, email]
           );
           importados++;
@@ -596,7 +596,7 @@ app.get('/api/clases/asistencias-dia', async (req, res) => {
 
     let clase = await db.getAsync(`SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`, [curso_id, fecha]);
     if (!clase) {
-      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?)`, [curso_id, fecha]);
+      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?) RETURNING id`, [curso_id, fecha]);
       clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [resClase.lastID]);
     }
 
@@ -627,7 +627,7 @@ app.post('/api/asistencias/manual', async (req, res) => {
     const { curso_id, fecha, alumno_id, estado } = req.body;
     let clase = await db.getAsync(`SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`, [curso_id, fecha]);
     if (!clase) {
-      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?)`, [curso_id, fecha]);
+      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?) RETURNING id`, [curso_id, fecha]);
       clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [resClase.lastID]);
     }
 
