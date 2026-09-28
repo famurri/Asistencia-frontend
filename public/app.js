@@ -116,6 +116,26 @@ async function validarIdentidadAlumno() {
       alumnoActual = data.alumno;
       cursoAlumnoActual = data.curso;
 
+      if (urlToken && (urlCurso || data.curso.id)) {
+        const cId = urlCurso || data.curso.id;
+        const resQR = await fetch('/api/alumnos/registrar-asistencia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: urlToken, legajo_dni: legajo, curso_id: cId })
+        });
+        const dataQR = await resQR.json();
+        if (dataQR.success) {
+          cambiarPasoAlumno('pasoAlumnoExito');
+          document.getElementById('exitoNombreAlumno').innerText = dataQR.alumno.nombre_completo;
+          document.getElementById('exitoLegajoAlumno').innerText = dataQR.alumno.legajo_dni;
+          document.getElementById('exitoHoraAlumno').innerText = dataQR.alumno.hora;
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          mostrarAlertaPaso1(false, dataQR.error);
+        }
+        return;
+      }
+      
       if (data.yaRegistrado) {
         mostrarAlertaPaso1(true, `ℹ️ ${data.mensaje}`);
         return;
@@ -371,7 +391,7 @@ async function toggleHabilitarSesion() {
       const res = await fetch('/api/docente/habilitar-sesion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ curso_id: cursoId, fecha })
+        body: JSON.stringify({ curso_id: cursoId, fecha, baseUrl: window.location.origin })
       });
       const data = await res.json();
 

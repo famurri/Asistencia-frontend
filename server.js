@@ -26,7 +26,7 @@ app.get('/main.html', (req, res) => {
 // cursoId -> { cursoId, claseId, fecha, tokenActual, creadoEn, expiraEn, timer, sseClientes, ultimosPresentes }
 const sesionesActivas = new Map();
 
-async function generarNuevoToken(cursoId, motivo = 'rotacion') {
+async function generarNuevoToken(cursoId, motivo = 'rotacion', baseUrl = null) {
   const sesion = sesionesActivas.get(parseInt(cursoId));
   if (!sesion) return null;
 
@@ -40,7 +40,9 @@ async function generarNuevoToken(cursoId, motivo = 'rotacion') {
   sesion.expiraEn = expiraEn;
 
   // El QR codifica una carga de verificación con prefijo
-  const qrTexto = `ASISTENCIA:${cursoId}:${nuevoToken}`;
+  const bUrl = baseUrl || (sesion && sesion.baseUrl ? sesion.baseUrl : 'http://localhost:3000');
+  if (sesion && baseUrl) sesion.baseUrl = baseUrl;
+  const qrTexto = `${bUrl}?curso=${cursoId}&token=${nuevoToken}`;
   const qrDataUrl = await QRCode.toDataURL(qrTexto, {
     width: 380,
     margin: 2,
@@ -122,7 +124,7 @@ app.post('/api/auth/cambiar-password', async (req, res) => {
 // Habilitar la toma de asistencia para un curso en la fecha indicada
 app.post('/api/docente/habilitar-sesion', async (req, res) => {
   try {
-    const { curso_id, fecha } = req.body;
+    const { curso_id, fecha, baseUrl } = req.body;
     if (!curso_id || !fecha) {
       return res.status(400).json({ success: false, error: 'curso_id y fecha son obligatorios' });
     }
@@ -169,7 +171,7 @@ app.post('/api/docente/habilitar-sesion', async (req, res) => {
     sesionesActivas.set(idCursoNum, nuevaSesion);
 
     // Generar primer QR
-    const qrInicial = await generarNuevoToken(idCursoNum, 'inicio_sesion');
+    const qrInicial = await generarNuevoToken(idCursoNum, 'inicio_sesion', baseUrl);
 
     res.json({
       success: true,
@@ -358,8 +360,16 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
 
     // 1. Parsear el contenido del QR escaneado
     // Formato esperado: ASISTENCIA:cursoId:TOKEN
-    let tokenEscaneado = codigo_escaneado.trim();
-    if (tokenEscaneado.startsWith('ASISTENCIA:')) {
+    let tokenEscaneado = req.body.token || (codigo_escaneado ? codigo_escaneado.trim() : '');
+    let cursoIdEscaneado = curso_id;
+
+    if (tokenEscaneado.includes('token=')) {
+      try {
+        const urlObj = new URL(tokenEscaneado);
+        tokenEscaneado = urlObj.searchParams.get('token');
+        cursoIdEscaneado = urlObj.searchParams.get('curso');
+      } catch (e) {}
+    } else if (tokenEscaneado.startsWith('ASISTENCIA:')) {
       const partes = tokenEscaneado.split(':');
       tokenEscaneado = partes[2] || '';
     }
