@@ -343,8 +343,8 @@ app.post('/api/alumnos/validar-legajo', async (req, res) => {
 // Registrar la asistencia tras escanear el QR proyectado
 app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
   try {
-    const { legajo_dni, curso_id, codigo_escaneado } = req.body;
-    if (!legajo_dni || !curso_id || !codigo_escaneado) {
+    const { legajo_dni, curso_id, codigo_escaneado, token } = req.body;
+    if (!legajo_dni || !curso_id || (!codigo_escaneado && !token)) {
       return res.status(400).json({ success: false, error: 'Faltan datos obligatorios para el registro' });
     }
 
