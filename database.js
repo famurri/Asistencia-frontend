@@ -111,9 +111,15 @@ async function inicializarBaseDeDatos() {
         estado TEXT NOT NULL DEFAULT 'PRESENTE',
         hora_registro TEXT,
         metodo TEXT DEFAULT 'QR_ALUMNO',
+        dispositivo_id TEXT,
         UNIQUE(clase_id, alumno_id)
       )
     `);
+
+    // Migración segura si la columna dispositivo_id no existía
+    try {
+      await db.runAsync(`ALTER TABLE asistencias ADD COLUMN dispositivo_id TEXT`);
+    } catch (e) {}
 
     // 6. Tabla de Tokens QR Usados (Para asegurar uso único y evitar reenvío por WhatsApp)
     await db.runAsync(`

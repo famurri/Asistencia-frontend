@@ -343,7 +343,7 @@ app.post('/api/alumnos/validar-legajo', async (req, res) => {
 // Registrar la asistencia tras escanear el QR proyectado
 app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
   try {
-    const { legajo_dni, curso_id, codigo_escaneado, token } = req.body;
+    const { legajo_dni, curso_id, codigo_escaneado, token, dispositivo_id } = req.body;
     if (!legajo_dni || !curso_id || (!codigo_escaneado && !token)) {
       return res.status(400).json({ success: false, error: 'Faltan datos obligatorios para el registro' });
     }
@@ -400,29 +400,46 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Alumno no registrado en esta materia.' });
     }
 
-    // 5. Registrar el token en la tabla de tokens usados para QUEMARLO
+    // 5. SEGURIDAD EXTRA: Bloqueo de 1 presente por dispositivo/celular en esta clase
+    if (dispositivo_id) {
+      const registroPrevio = await db.getAsync(`
+        SELECT ast.*, al.nombre_completo, al.legajo_dni
+        FROM asistencias ast
+        JOIN alumnos al ON al.id = ast.alumno_id
+        WHERE ast.clase_id = ? AND ast.dispositivo_id = ? AND ast.alumno_id != ?
+      `, [sesion.claseId, dispositivo_id, alumno.id]);
+
+      if (registroPrevio) {
+        return res.status(403).json({
+          success: false,
+          error: `🚫 Este celular ya fue utilizado hoy para registrar a ${registroPrevio.nombre_completo} (Legajo: ${registroPrevio.legajo_dni}). Solo se permite 1 presente por dispositivo.`
+        });
+      }
+    }
+
+    // 6. Registrar el token en la tabla de tokens usados para QUEMARLO
     await db.runAsync(`
       INSERT INTO tokens_usados (token, curso_id, alumno_id) VALUES (?, ?, ?)
     `, [tokenEscaneado, idCursoNum, alumno.id]);
 
-    // 6. Guardar la asistencia como PRESENTE
+    // 7. Guardar la asistencia como PRESENTE con el dispositivo_id
     const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     await db.runAsync(`
-      INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo)
-      VALUES (?, ?, 'PRESENTE', ?, 'QR_ALUMNO')
+      INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo, dispositivo_id)
+      VALUES (?, ?, 'PRESENTE', ?, 'QR_ALUMNO', ?)
       ON CONFLICT(clase_id, alumno_id)
-      DO UPDATE SET estado = 'PRESENTE', hora_registro = ?, metodo = 'QR_ALUMNO'
-    `, [sesion.claseId, alumno.id, hora, hora]);
+      DO UPDATE SET estado = 'PRESENTE', hora_registro = ?, metodo = 'QR_ALUMNO', dispositivo_id = ?
+    `, [sesion.claseId, alumno.id, hora, dispositivo_id || null, hora, dispositivo_id || null]);
 
-    // 7. Agregar al historial reciente de la sesión para el proyector
+    // 8. Agregar al historial reciente de la sesión para el proyector
     sesion.ultimosPresentes.unshift({
       nombre_completo: alumno.nombre_completo,
       legajo_dni: alumno.legajo_dni,
       hora
     });
 
-    // 8. ¡PASO CRÍTICO DE SEGURIDAD!: Inmediatamente generar un NUEVO QR en el proyector
+    // 9. ¡PASO CRÍTICO DE SEGURIDAD!: Inmediatamente generar un NUEVO QR en el proyector
     await generarNuevoToken(idCursoNum, 'alumno_escaneo');
 
     res.json({

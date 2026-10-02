@@ -104,6 +104,24 @@ async function verificarClasesActivasAlumno() {
   } catch (e) {}
 }
 
+function obtenerOcrearDeviceId() {
+  try {
+    let devId = localStorage.getItem('asistencia_device_id');
+    if (!devId) {
+      const match = document.cookie.match(/(^|;)\s*asistencia_device_id\s*=\s*([^;]+)/);
+      if (match) devId = match[2];
+    }
+    if (!devId) {
+      devId = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+    }
+    localStorage.setItem('asistencia_device_id', devId);
+    document.cookie = 'asistencia_device_id=' + devId + '; max-age=31536000; path=/; SameSite=Lax';
+    return devId;
+  } catch (e) {
+    return 'dev_' + Date.now();
+  }
+}
+
 async function validarIdentidadAlumno() {
   const inputLegajo = document.getElementById('inputLegajoAlumno');
   const legajo = inputLegajo ? inputLegajo.value.trim() : '';
@@ -143,7 +161,7 @@ async function validarIdentidadAlumno() {
       const resQR = await fetch('/api/alumnos/registrar-asistencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: urlToken, legajo_dni: legajo, curso_id: cId })
+        body: JSON.stringify({ token: urlToken, legajo_dni: legajo, curso_id: cId, dispositivo_id: obtenerOcrearDeviceId() })
       });
       const dataQR = await resQR.json();
       if (dataQR.success) {
@@ -227,7 +245,8 @@ async function onScanQrAlumno(codigoDecodificado) {
       body: JSON.stringify({
         legajo_dni: alumnoActual.legajo_dni,
         curso_id: cursoAlumnoActual.id,
-        codigo_escaneado: codigoDecodificado
+        codigo_escaneado: codigoDecodificado,
+        dispositivo_id: obtenerOcrearDeviceId()
       })
     });
     const data = await res.json();
