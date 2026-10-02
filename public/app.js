@@ -13,6 +13,8 @@ let cursoAlumnoActual = null;
 let html5QrAlumno = null;
 let escaneandoAlumno = false;
 let ultimoEscaneoTimestamp = 0;
+let urlToken = null;
+let urlCurso = null;
 
 // Estado del Docente
 let cursos = [];
@@ -36,6 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const anioInput = document.getElementById('nuevoCursoAnio');
   if (anioInput) anioInput.value = new Date().getFullYear();
+
+  // Detectar si el alumno abrió el enlace escaneando el QR con su cámara
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('token') && params.has('curso')) {
+    urlToken = params.get('token');
+    urlCurso = params.get('curso');
+    const pIntro = document.querySelector('#pasoAlumnoIdentificacion p');
+    if (pIntro) {
+      pIntro.innerText = 'Ingresa tu número de Legajo para dar el presente directamente.';
+    }
+  }
 
   // Comprobar cursos disponibles para la vista del alumno
   verificarClasesActivasAlumno();
@@ -93,8 +106,7 @@ async function verificarClasesActivasAlumno() {
 
 async function validarIdentidadAlumno() {
   const inputLegajo = document.getElementById('inputLegajoAlumno');
-  const legajo = inputLegajo.value.trim();
-  const alerta = document.getElementById('alertaAlumnoPaso1');
+  const legajo = inputLegajo ? inputLegajo.value.trim() : '';
 
   if (!legajo) {
     mostrarAlertaPaso1(false, 'Por favor ingresa tu número de Legajo.');
@@ -102,7 +114,7 @@ async function validarIdentidadAlumno() {
   }
 
   const selMateria = document.getElementById('selectMateriaAlumno');
-  const cursoId = selMateria ? selMateria.value : null;
+  const cursoId = urlCurso || (selMateria && selMateria.value ? selMateria.value : null);
 
   try {
     const res = await fetch('/api/alumnos/validar-legajo', {
@@ -112,46 +124,56 @@ async function validarIdentidadAlumno() {
     });
     const data = await res.json();
 
-    if (data.success) {
-      alumnoActual = data.alumno;
-      cursoAlumnoActual = data.curso;
+    if (!data.success) {
+      mostrarAlertaPaso1(false, data.error || 'El legajo no figura en el curso activo.');
+      return;
+    }
 
-      if (urlToken && (urlCurso || data.curso.id)) {
-        const cId = urlCurso || data.curso.id;
-        const resQR = await fetch('/api/alumnos/registrar-asistencia', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: urlToken, legajo_dni: legajo, curso_id: cId })
-        });
-        const dataQR = await resQR.json();
-        if (dataQR.success) {
-          cambiarPasoAlumno('pasoAlumnoExito');
-          document.getElementById('exitoNombreAlumno').innerText = dataQR.alumno.nombre_completo;
-          document.getElementById('exitoLegajoAlumno').innerText = dataQR.alumno.legajo_dni;
-          document.getElementById('exitoHoraAlumno').innerText = dataQR.alumno.hora;
+    alumnoActual = data.alumno;
+    cursoAlumnoActual = data.curso;
+
+    if (data.yaRegistrado) {
+      mostrarAlertaPaso1(true, `ℹ️ ${data.mensaje}`);
+      return;
+    }
+
+    // Si viene directamente de escanear el QR con la cámara del celular (URL con token)
+    if (urlToken && (urlCurso || (data.curso && data.curso.id))) {
+      const cId = urlCurso || data.curso.id;
+      const resQR = await fetch('/api/alumnos/registrar-asistencia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: urlToken, legajo_dni: legajo, curso_id: cId })
+      });
+      const dataQR = await resQR.json();
+      if (dataQR.success) {
+        emitirSonido(true);
+        cambiarPasoAlumno('pasoAlumnoExito');
+        document.getElementById('exitoNombreAlumno').innerText = dataQR.alumno.nombre_completo;
+        document.getElementById('exitoLegajoAlumno').innerText = dataQR.alumno.legajo_dni;
+        document.getElementById('exitoHoraAlumno').innerText = dataQR.alumno.hora;
+        try {
           window.history.replaceState({}, document.title, window.location.pathname);
-        } else {
-          mostrarAlertaPaso1(false, dataQR.error);
-        }
-        return;
+        } catch (e) {}
+      } else {
+        mostrarAlertaPaso1(false, dataQR.error || 'Error al registrar asistencia.');
       }
-      
-      if (data.yaRegistrado) {
-        mostrarAlertaPaso1(true, `ℹ️ ${data.mensaje}`);
-        return;
-      }
+      return;
+    }
 
-      // Pasar a la pantalla de la cámara
-      cambiarPasoAlumno('pasoAlumnoCamara');
-      document.getElementById('textoSaludoAlumno').innerText = `Hola, ${alumnoActual.nombre_completo}`;
-      document.getElementById('textoMateriaAlumno').innerText = `Materia: ${cursoAlumnoActual.nombre} ${cursoAlumnoActual.comision ? `(${cursoAlumnoActual.comision})` : ''}`;
+    // Si no vino por URL con QR, pasar a la pantalla de la cámara
+    cambiarPasoAlumno('pasoAlumnoCamara');
+    document.getElementById('textoSaludoAlumno').innerText = `Hola, ${alumnoActual.nombre_completo}`;
+    document.getElementById('textoMateriaAlumno').innerText = `Materia: ${cursoAlumnoActual.nombre} ${cursoAlumnoActual.comision ? `(${cursoAlumnoActual.comision})` : ''}`;
 
+    try {
       iniciarCamaraAlumno();
-    } else {
-      mostrarAlertaPaso1(false, data.error);
+    } catch (camErr) {
+      console.error('Error al inicializar cámara:', camErr);
     }
   } catch (err) {
-    mostrarAlertaPaso1(false, 'Error de conexión con el servidor.');
+    console.error('Error en validarIdentidadAlumno:', err);
+    mostrarAlertaPaso1(false, 'Error de conexión: ' + (err.message || 'Intente nuevamente'));
   }
 }
 
