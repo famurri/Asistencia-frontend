@@ -26,18 +26,35 @@ app.get('/main.html', (req, res) => {
 // cursoId -> { cursoId, claseId, fecha, tokenActual, creadoEn, expiraEn, timer, sseClientes, ultimosPresentes }
 const sesionesActivas = new Map();
 
+const DURACION_QR_SEGUNDOS = 30; // 30 segundos por código en pantalla
+const MARGEN_GRACIA_MS = 15000;  // 15 segundos de tolerancia para escribir legajo
+
 async function generarNuevoToken(cursoId, motivo = 'rotacion', baseUrl = null) {
   const sesion = sesionesActivas.get(parseInt(cursoId));
   if (!sesion) return null;
 
+  if (!sesion.tokensValidos) {
+    sesion.tokensValidos = new Map(); // token -> expiraEnTimestamp
+  }
+
+  // Limpiar tokens viejos ya expirados
+  const ahora = Date.now();
+  for (const [tok, expira] of sesion.tokensValidos.entries()) {
+    if (ahora > expira) {
+      sesion.tokensValidos.delete(tok);
+    }
+  }
+
   // Generar token único de 8 caracteres alfanuméricos
   const nuevoToken = crypto.randomBytes(4).toString('hex').toUpperCase();
-  const creadoEn = Date.now();
-  const expiraEn = creadoEn + 60000; // 60 segundos
+  const creadoEn = ahora;
+  const expiraEn = creadoEn + (DURACION_QR_SEGUNDOS * 1000);
+  const expiraConGracia = expiraEn + MARGEN_GRACIA_MS;
 
   sesion.tokenActual = nuevoToken;
   sesion.creadoEn = creadoEn;
   sesion.expiraEn = expiraEn;
+  sesion.tokensValidos.set(nuevoToken, expiraConGracia);
 
   // El QR codifica una carga de verificación con prefijo
   const bUrl = baseUrl || (sesion && sesion.baseUrl ? sesion.baseUrl : 'http://localhost:3000');
@@ -56,7 +73,7 @@ async function generarNuevoToken(cursoId, motivo = 'rotacion', baseUrl = null) {
     tipo: 'NUEVO_QR',
     qrDataUrl,
     token: nuevoToken,
-    segundosValidez: 60,
+    segundosValidez: DURACION_QR_SEGUNDOS,
     motivo,
     totalPresentes: sesion.ultimosPresentes.length,
     ultimosPresentes: sesion.ultimosPresentes.slice(0, 10)
@@ -67,11 +84,11 @@ async function generarNuevoToken(cursoId, motivo = 'rotacion', baseUrl = null) {
     try { client.write(dataStr); } catch (e) {}
   });
 
-  // Reiniciar el temporizador de 60 segundos
+  // Reiniciar el temporizador de 30 segundos
   if (sesion.timer) clearTimeout(sesion.timer);
   sesion.timer = setTimeout(() => {
-    generarNuevoToken(cursoId, 'rotacion_60s');
-  }, 60000);
+    generarNuevoToken(cursoId, 'rotacion_30s');
+  }, DURACION_QR_SEGUNDOS * 1000);
 
   return { qrDataUrl, token: nuevoToken };
 }
@@ -359,39 +376,30 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
     }
 
     // 1. Parsear el contenido del QR escaneado
-    // Formato esperado: ASISTENCIA:cursoId:TOKEN
     let tokenEscaneado = req.body.token || (codigo_escaneado ? codigo_escaneado.trim() : '');
-    let cursoIdEscaneado = curso_id;
 
     if (tokenEscaneado.includes('token=')) {
       try {
         const urlObj = new URL(tokenEscaneado);
         tokenEscaneado = urlObj.searchParams.get('token');
-        cursoIdEscaneado = urlObj.searchParams.get('curso');
       } catch (e) {}
     } else if (tokenEscaneado.startsWith('ASISTENCIA:')) {
       const partes = tokenEscaneado.split(':');
       tokenEscaneado = partes[2] || '';
     }
 
-    // 2. Comprobar si el token ya fue utilizado por otro alumno (Anti-WhatsApp)
-    const tokenUsado = await db.getAsync(`SELECT * FROM tokens_usados WHERE token = ?`, [tokenEscaneado]);
-    if (tokenUsado) {
-      return res.status(403).json({
-        success: false,
-        error: '⚠️ Este código QR ya fue utilizado por otro compañero. Enfoca el nuevo código que aparece en la pantalla del proyector.'
-      });
-    }
+    // 2. Comprobar si coincide con el token activo o dentro de la ventana de tolerancia
+    const ahora = Date.now();
+    const esValido = (sesion.tokensValidos && sesion.tokensValidos.has(tokenEscaneado) && sesion.tokensValidos.get(tokenEscaneado) >= ahora) || (tokenEscaneado === sesion.tokenActual);
 
-    // 3. Comprobar si coincide con el token activo actual de la sesión
-    if (tokenEscaneado !== sesion.tokenActual) {
+    if (!esValido) {
       return res.status(400).json({
         success: false,
-        error: '⚠️ El código QR ha expirado o no es válido. Enfoca el código vigente en la pantalla del aula.'
+        error: '⚠️ El código QR ha expirado. Por favor enfoca el código vigente en la pantalla del proyector.'
       });
     }
 
-    // 4. Buscar al alumno en la base de datos
+    // 3. Buscar al alumno en la base de datos
     const alumno = await db.getAsync(`
       SELECT * FROM alumnos WHERE curso_id = ? AND legajo_dni = ?
     `, [idCursoNum, legajo_dni.trim()]);
@@ -400,7 +408,7 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Alumno no registrado en esta materia.' });
     }
 
-    // 5. SEGURIDAD EXTRA: Bloqueo de 1 presente por dispositivo/celular en esta clase
+    // 4. SEGURIDAD EXTRA: Bloqueo de 1 presente por dispositivo/celular en esta clase
     if (dispositivo_id) {
       const registroPrevio = await db.getAsync(`
         SELECT ast.*, al.nombre_completo, al.legajo_dni
@@ -417,12 +425,7 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
       }
     }
 
-    // 6. Registrar el token en la tabla de tokens usados para QUEMARLO
-    await db.runAsync(`
-      INSERT INTO tokens_usados (token, curso_id, alumno_id) VALUES (?, ?, ?)
-    `, [tokenEscaneado, idCursoNum, alumno.id]);
-
-    // 7. Guardar la asistencia como PRESENTE con el dispositivo_id
+    // 5. Guardar la asistencia como PRESENTE con el dispositivo_id
     const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     await db.runAsync(`
@@ -432,15 +435,28 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
       DO UPDATE SET estado = 'PRESENTE', hora_registro = ?, metodo = 'QR_ALUMNO', dispositivo_id = ?
     `, [sesion.claseId, alumno.id, hora, dispositivo_id || null, hora, dispositivo_id || null]);
 
-    // 8. Agregar al historial reciente de la sesión para el proyector
+    // 6. Agregar al historial reciente de la sesión para el proyector
     sesion.ultimosPresentes.unshift({
       nombre_completo: alumno.nombre_completo,
       legajo_dni: alumno.legajo_dni,
       hora
     });
 
-    // 9. ¡PASO CRÍTICO DE SEGURIDAD!: Inmediatamente generar un NUEVO QR en el proyector
-    await generarNuevoToken(idCursoNum, 'alumno_escaneo');
+    // 7. Notificar en tiempo real al proyector (sin rotar el QR)
+    const payloadPresente = {
+      tipo: 'NUEVO_PRESENTE',
+      totalPresentes: sesion.ultimosPresentes.length,
+      ultimosPresentes: sesion.ultimosPresentes.slice(0, 10),
+      alumno: {
+        nombre_completo: alumno.nombre_completo,
+        legajo_dni: alumno.legajo_dni,
+        hora
+      }
+    };
+    const sseMsg = `data: ${JSON.stringify(payloadPresente)}\n\n`;
+    sesion.sseClientes.forEach(client => {
+      try { client.write(sseMsg); } catch (e) {}
+    });
 
     res.json({
       success: true,

@@ -495,16 +495,16 @@ function conectarSseProyector(cursoId) {
         box.style.transform = 'scale(0.96)';
         setTimeout(() => box.style.transform = 'scale(1)', 150);
 
-        if (data.motivo === 'alumno_escaneo') {
-          emitirSonido(true);
-        }
-
         // Actualizar feed en vivo
         document.getElementById('badgeTotalPresentesVivo').innerText = `${data.totalPresentes} Alumnos`;
         renderizarFeedVivo(data.ultimosPresentes);
 
-        // Reiniciar cronómetro regresivo de 60s
-        reiniciarCronometro(data.segundosValidez || 60);
+        // Reiniciar cronómetro regresivo (30s)
+        reiniciarCronometro(data.segundosValidez || 30);
+      } else if (data.tipo === 'NUEVO_PRESENTE') {
+        emitirSonido(true);
+        document.getElementById('badgeTotalPresentesVivo').innerText = `${data.totalPresentes} Alumnos`;
+        renderizarFeedVivo(data.ultimosPresentes);
       } else if (data.tipo === 'SESION_PAUSADA') {
         if (sesionProyectorActiva) toggleHabilitarSesion();
       }
@@ -516,9 +516,10 @@ function conectarSseProyector(cursoId) {
   };
 }
 
-function reiniciarCronometro(segundosIniciales) {
+function reiniciarCronometro(segundosIniciales = 30) {
   clearInterval(countdownTimer);
   segundosRestantes = segundosIniciales;
+  const maxSegundos = segundosIniciales || 30;
 
   const contadorSpan = document.getElementById('contadorSegundosRestantes');
   const barFill = document.getElementById('timerBarFill');
@@ -528,7 +529,7 @@ function reiniciarCronometro(segundosIniciales) {
   countdownTimer = setInterval(() => {
     segundosRestantes--;
     if (segundosRestantes <= 0) {
-      segundosRestantes = 60;
+      segundosRestantes = maxSegundos;
     }
     actualizarVisualCronometro();
   }, 1000);
@@ -536,7 +537,7 @@ function reiniciarCronometro(segundosIniciales) {
   function actualizarVisualCronometro() {
     if (contadorSpan) contadorSpan.innerText = segundosRestantes;
     if (barFill) {
-      const pct = (segundosRestantes / 60) * 100;
+      const pct = (segundosRestantes / maxSegundos) * 100;
       barFill.style.width = `${pct}%`;
       if (pct > 40) barFill.style.background = '#2563eb';
       else if (pct > 15) barFill.style.background = '#f59e0b';
