@@ -166,7 +166,23 @@ app.post('/api/docente/habilitar-sesion', async (req, res) => {
       ORDER BY ast.id DESC
     `, [clase.id]);
 
-    // Limpiar temporizador previo si existía
+    // 1. Cerrar y pausar cualquier otra sesión activa previa automáticamente
+    for (const [idPrevio, sesionPrevia] of sesionesActivas.entries()) {
+      if (idPrevio !== idCursoNum) {
+        if (sesionPrevia.timer) clearTimeout(sesionPrevia.timer);
+        const payloadPausa = { tipo: 'SESION_PAUSADA' };
+        sesionPrevia.sseClientes.forEach(c => {
+          try { c.write(`data: ${JSON.stringify(payloadPausa)}\n\n`); } catch(e) {}
+        });
+        await db.runAsync(`UPDATE clases SET asistencia_activa = 0 WHERE id = ?`, [sesionPrevia.claseId]);
+        sesionesActivas.delete(idPrevio);
+      }
+    }
+
+    // Desactivar en la base de datos cualquier otra clase que haya quedado marcada como activa
+    await db.runAsync(`UPDATE clases SET asistencia_activa = 0 WHERE id != ?`, [clase.id]);
+
+    // Limpiar temporizador previo si existía en este mismo curso
     if (sesionesActivas.has(idCursoNum)) {
       const anterior = sesionesActivas.get(idCursoNum);
       if (anterior.timer) clearTimeout(anterior.timer);
