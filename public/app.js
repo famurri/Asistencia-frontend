@@ -18,6 +18,7 @@ let urlCurso = null;
 
 // Estado del Docente
 let cursos = [];
+let alumnosActualesDocente = [];
 let cursoDocenteActivoId = null;
 
 // =======================================================
@@ -666,6 +667,7 @@ async function seleccionarCursoDocente(id) {
 }
 
 function renderizarTablaAlumnosDocente(alumnos) {
+  alumnosActualesDocente = alumnos || [];
   const tbody = document.getElementById('tablaAlumnosDocenteCuerpo');
   if (!tbody) return;
 
@@ -680,8 +682,8 @@ function renderizarTablaAlumnosDocente(alumnos) {
       <td>${al.nombre_completo}</td>
       <td style="color: #64748b;">${al.email || '-'}</td>
       <td style="text-align: center; display: flex; gap: 0.35rem; justify-content: center;">
-        <button class="btn btn-secondary btn-sm" title="Editar datos del alumno" onclick="abrirModalEditarAlumno(${al.id}, '${al.legajo_dni.replace(/'/g, "\\'")}', '${al.nombre_completo.replace(/'/g, "\\'")}', '${(al.email || '').replace(/'/g, "\\"')}')">✏️</button>
-        <button class="btn btn-secondary btn-sm" style="color: #dc2626;" title="Eliminar alumno" onclick="eliminarAlumnoDocente(${al.id}, '${al.nombre_completo.replace(/'/g, "\\'")}')">🗑️</button>
+        <button class="btn btn-secondary btn-sm" title="Editar datos del alumno" onclick="abrirModalEditarAlumno(${al.id})">✏️</button>
+        <button class="btn btn-secondary btn-sm" style="color: #dc2626;" title="Eliminar alumno" onclick="eliminarAlumnoDocente(${al.id})">🗑️</button>
       </td>
     </tr>
   `).join('');
@@ -774,7 +776,9 @@ async function procesarCargaMasiva() {
   } catch (e) {}
 }
 
-async function eliminarAlumnoDocente(id, nom) {
+async function eliminarAlumnoDocente(id) {
+  const al = alumnosActualesDocente.find(a => a.id === id);
+  const nom = al ? al.nombre_completo : 'este alumno';
   if (!confirm(`¿Eliminar al alumno "${nom}"?`)) return;
   try {
     await fetch(`/api/alumnos/${id}`, { method: 'DELETE' });
@@ -936,11 +940,13 @@ function cerrarModal(id) {
 // =======================================================
 // CORRECCIÓN DE DATOS DE ALUMNO
 // =======================================================
-function abrirModalEditarAlumno(id, legajo, nombre, email) {
-  document.getElementById('editarAlumnoId').value = id;
-  document.getElementById('editarAlumnoLegajo').value = legajo;
-  document.getElementById('editarAlumnoNombre').value = nombre;
-  document.getElementById('editarAlumnoEmail').value = email || '';
+function abrirModalEditarAlumno(id) {
+  const al = alumnosActualesDocente.find(a => a.id === id);
+  if (!al) return;
+  document.getElementById('editarAlumnoId').value = al.id;
+  document.getElementById('editarAlumnoLegajo').value = al.legajo_dni;
+  document.getElementById('editarAlumnoNombre').value = al.nombre_completo;
+  document.getElementById('editarAlumnoEmail').value = al.email || '';
   const alerta = document.getElementById('alertaEditarAlumno');
   if (alerta) alerta.style.display = 'none';
   abrirModal('modalEditarAlumno');
