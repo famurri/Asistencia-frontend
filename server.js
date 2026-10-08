@@ -633,6 +633,30 @@ app.post('/api/cursos/:cursoId/alumnos/bulk', async (req, res) => {
   }
 });
 
+app.put('/api/alumnos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { legajo_dni, nombre_completo, email } = req.body;
+
+    if (!legajo_dni || !nombre_completo) {
+      return res.status(400).json({ success: false, error: 'Legajo y Nombre son obligatorios' });
+    }
+
+    await db.runAsync(
+      `UPDATE alumnos SET legajo_dni = ?, nombre_completo = ?, email = ? WHERE id = ?`,
+      [legajo_dni.trim(), nombre_completo.trim(), email ? email.trim() : '', id]
+    );
+
+    const alumnoActualizado = await db.getAsync(`SELECT * FROM alumnos WHERE id = ?`, [id]);
+    res.json({ success: true, alumno: alumnoActualizado });
+  } catch (err) {
+    if (err.message && (err.message.includes('UNIQUE') || err.message.includes('unique'))) {
+      return res.status(400).json({ success: false, error: 'Ya existe otro alumno con ese Legajo en este curso' });
+    }
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.delete('/api/alumnos/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -683,11 +707,21 @@ app.get('/api/clases/asistencias-dia', async (req, res) => {
 
 app.post('/api/asistencias/manual', async (req, res) => {
   try {
-    const { curso_id, fecha, alumno_id, estado } = req.body;
-    let clase = await db.getAsync(`SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`, [curso_id, fecha]);
+    const { curso_id, fecha, clase_id, alumno_id, estado } = req.body;
+    let clase = null;
+
+    if (clase_id) {
+      clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [clase_id]);
+    } else if (curso_id && fecha) {
+      clase = await db.getAsync(`SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`, [curso_id, fecha]);
+      if (!clase) {
+        const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?) RETURNING id`, [curso_id, fecha]);
+        clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [resClase.lastID]);
+      }
+    }
+
     if (!clase) {
-      const resClase = await db.runAsync(`INSERT INTO clases (curso_id, fecha) VALUES (?, ?) RETURNING id`, [curso_id, fecha]);
-      clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [resClase.lastID]);
+      return res.status(400).json({ success: false, error: 'No se encontró la clase especificada' });
     }
 
     const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -699,7 +733,7 @@ app.post('/api/asistencias/manual', async (req, res) => {
       DO UPDATE SET estado = ?, hora_registro = ?, metodo = 'MANUAL'
     `, [clase.id, alumno_id, estado, hora, estado, hora]);
 
-    res.json({ success: true, estado, hora });
+    res.json({ success: true, estado, hora, clase_id: clase.id, alumno_id });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

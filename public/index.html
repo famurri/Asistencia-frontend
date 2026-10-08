@@ -208,12 +208,22 @@
 
     <!-- PESTAÑA DOCENTE 2: NÓMINA DEL DÍA Y MARCACIÓN MANUAL -->
     <div id="tabDocente-nomina" class="tab-content">
+      <div class="top-bar">
+        <div class="form-group-inline">
+          <label for="selectCursoNomina">Curso:</label>
+          <select id="selectCursoNomina" onchange="recargarNominaDia()"></select>
+        </div>
+        <div class="form-group-inline">
+          <label for="fechaNomina">Fecha:</label>
+          <input type="date" id="fechaNomina" onchange="recargarNominaDia()">
+        </div>
+        <button class="btn btn-secondary" onclick="recargarNominaDia()">🔄 Actualizar Nómina</button>
+      </div>
+
       <div class="card">
         <div class="card-header">
-          <h3>Nómina y Marcación Manual de la Clase</h3>
-          <div style="display: flex; gap: 0.4rem;">
-            <button class="btn btn-secondary btn-sm" onclick="recargarNominaDia()">🔄 Actualizar</button>
-          </div>
+          <h3 id="tituloNominaClase">Nómina y Marcación Manual</h3>
+          <span id="badgeTotalPresentesNomina" class="badge badge-presente">0 Presentes</span>
         </div>
         <div class="card-body">
           <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
@@ -314,7 +324,10 @@
       <div class="card">
         <div class="card-header">
           <h3 id="tituloReporteDocente">Planilla de Asistencia (Matriz por Fechas)</h3>
-          <span id="badgeReporteTotalClasesDocente" class="badge badge-noregistrado">0 Clases registradas</span>
+          <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; background: #e0f2fe; color: #0369a1; padding: 0.25rem 0.65rem; border-radius: 6px; font-weight: 600;">💡 Clic en P, T o A para corregir</span>
+            <span id="badgeReporteTotalClasesDocente" class="badge badge-noregistrado">0 Clases registradas</span>
+          </div>
         </div>
         <div class="card-body">
           <div class="table-responsive" style="max-height: 550px; overflow-y: auto;">
@@ -450,6 +463,36 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="cerrarModal('modalCargaMasiva')">Cancelar</button>
         <button class="btn btn-primary" onclick="procesarCargaMasiva()">Importar Alumnos</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Modal: Editar Alumno -->
+  <div id="modalEditarAlumno" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>✏️ Editar Datos del Alumno</h3>
+        <button class="modal-close" onclick="cerrarModal('modalEditarAlumno')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editarAlumnoId">
+        <div class="form-field">
+          <label for="editarAlumnoLegajo">Legajo / DNI: *</label>
+          <input type="text" id="editarAlumnoLegajo" placeholder="Ej: 42123456">
+        </div>
+        <div class="form-field">
+          <label for="editarAlumnoNombre">Apellido y Nombre: *</label>
+          <input type="text" id="editarAlumnoNombre" placeholder="Ej: Pérez, Juan">
+        </div>
+        <div class="form-field">
+          <label for="editarAlumnoEmail">Email (Opcional):</label>
+          <input type="text" id="editarAlumnoEmail" placeholder="juan.perez@universidad.edu.ar">
+        </div>
+        <div id="alertaEditarAlumno" style="display: none; padding: 0.6rem; border-radius: 6px; background: #fee2e2; color: #991b1b; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalEditarAlumno')">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarEdicionAlumno()">Guardar Cambios</button>
       </div>
     </div>
   </div>

@@ -478,6 +478,19 @@ tr:hover td { background: #f8fafc; }
 .matrix-cell-P { background: var(--success-bg); color: #065f46; font-weight: bold; text-align: center; }
 .matrix-cell-A { background: var(--danger-bg); color: #991b1b; font-weight: bold; text-align: center; }
 .matrix-cell-T { background: var(--warning-bg); color: #92400e; font-weight: bold; text-align: center; }
+.matrix-cell-editable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  min-width: 44px;
+}
+.matrix-cell-editable:hover {
+  filter: brightness(0.9);
+  transform: scale(1.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  z-index: 10;
+  position: relative;
+}
 
 /* Animations */
 @keyframes slideInRight {

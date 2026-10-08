@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const fechaProy = document.getElementById('fechaProyector');
   if (fechaProy) fechaProy.value = hoy;
 
+  const fechaNom = document.getElementById('fechaNomina');
+  if (fechaNom) fechaNom.value = hoy;
+
   const repDesde = document.getElementById('reporteDesdeDocente');
   if (repDesde) repDesde.value = primerDiaMes;
 
@@ -593,6 +596,7 @@ async function cargarCursosDocente() {
 function actualizarSelectoresDocente() {
   const selProy = document.getElementById('selectCursoProyector');
   const selRep = document.getElementById('selectCursoReporteDocente');
+  const selNom = document.getElementById('selectCursoNomina');
 
   const options = ['<option value="">-- Selecciona un Curso --</option>'];
   cursos.forEach(c => {
@@ -611,6 +615,10 @@ function actualizarSelectoresDocente() {
   if (selRep) {
     selRep.innerHTML = html;
     if (cursos.length > 0) selRep.value = cursos[0].id;
+  }
+  if (selNom) {
+    selNom.innerHTML = html;
+    if (cursos.length > 0) selNom.value = cursos[0].id;
   }
 }
 
@@ -671,8 +679,9 @@ function renderizarTablaAlumnosDocente(alumnos) {
       <td style="font-weight: 600;">${al.legajo_dni}</td>
       <td>${al.nombre_completo}</td>
       <td style="color: #64748b;">${al.email || '-'}</td>
-      <td style="text-align: center;">
-        <button class="btn btn-secondary btn-sm" style="color: #dc2626;" onclick="eliminarAlumnoDocente(${al.id}, '${al.nombre_completo}')">🗑️</button>
+      <td style="text-align: center; display: flex; gap: 0.35rem; justify-content: center;">
+        <button class="btn btn-secondary btn-sm" title="Editar datos del alumno" onclick="abrirModalEditarAlumno(${al.id}, '${al.legajo_dni.replace(/'/g, "\\'")}', '${al.nombre_completo.replace(/'/g, "\\'")}', '${(al.email || '').replace(/'/g, "\\"')}')">✏️</button>
+        <button class="btn btn-secondary btn-sm" style="color: #dc2626;" title="Eliminar alumno" onclick="eliminarAlumnoDocente(${al.id}, '${al.nombre_completo.replace(/'/g, "\\'")}')">🗑️</button>
       </td>
     </tr>
   `).join('');
@@ -778,8 +787,10 @@ async function eliminarAlumnoDocente(id, nom) {
 // 5. NÓMINA DEL DÍA Y ASISTENCIA MANUAL (DOCENTE)
 // =======================================================
 async function recargarNominaDia() {
-  const cursoId = document.getElementById('selectCursoProyector').value;
-  const fecha = document.getElementById('fechaProyector').value;
+  const selNom = document.getElementById('selectCursoNomina');
+  const fecNom = document.getElementById('fechaNomina');
+  const cursoId = (selNom && selNom.value) ? selNom.value : document.getElementById('selectCursoProyector').value;
+  const fecha = (fecNom && fecNom.value) ? fecNom.value : document.getElementById('fechaProyector').value;
   if (!cursoId || !fecha) return;
 
   try {
@@ -817,8 +828,10 @@ async function recargarNominaDia() {
 }
 
 async function marcarManualDocente(alumnoId, estado) {
-  const cursoId = document.getElementById('selectCursoProyector').value;
-  const fecha = document.getElementById('fechaProyector').value;
+  const selNom = document.getElementById('selectCursoNomina');
+  const fecNom = document.getElementById('fechaNomina');
+  const cursoId = (selNom && selNom.value) ? selNom.value : document.getElementById('selectCursoProyector').value;
+  const fecha = (fecNom && fecNom.value) ? fecNom.value : document.getElementById('fechaProyector').value;
 
   try {
     const res = await fetch('/api/asistencias/manual', {
@@ -873,10 +886,14 @@ async function generarVistaPreviaReporteDocente() {
       data.filas.forEach(f => {
         cuerpoHtml += `<tr><td>${f.num}</td><td style="font-weight: 600;">${f.legajo_dni}</td><td>${f.nombre_completo}</td>`;
         data.clases.forEach(c => {
-          const est = f.estadosPorClase[c.id];
-          if (est === 'PRESENTE') cuerpoHtml += `<td class="matrix-cell-P">P</td>`;
-          else if (est === 'TARDE') cuerpoHtml += `<td class="matrix-cell-T">T</td>`;
-          else cuerpoHtml += `<td class="matrix-cell-A">A</td>`;
+          const est = f.estadosPorClase[c.id] || 'AUSENTE';
+          const letra = est === 'PRESENTE' ? 'P' : (est === 'TARDE' ? 'T' : 'A');
+          cuerpoHtml += `<td class="matrix-cell-${letra} matrix-cell-editable" 
+                             data-alumno-id="${f.id}" 
+                             data-clase-id="${c.id}" 
+                             data-fecha="${c.fecha}" 
+                             onclick="cambiarAsistenciaMatriz(this, ${f.id}, ${c.id}, '${c.fecha}')" 
+                             title="Clic para cambiar: P -> T -> A">${letra}</td>`;
         });
         cuerpoHtml += `
           <td style="text-align: center; font-weight: 600;">${f.totalClases}</td>
@@ -914,4 +931,132 @@ function abrirModal(id) {
 function cerrarModal(id) {
   const el = document.getElementById(id);
   if (el) el.classList.remove('active');
+}
+
+// =======================================================
+// CORRECCIÓN DE DATOS DE ALUMNO
+// =======================================================
+function abrirModalEditarAlumno(id, legajo, nombre, email) {
+  document.getElementById('editarAlumnoId').value = id;
+  document.getElementById('editarAlumnoLegajo').value = legajo;
+  document.getElementById('editarAlumnoNombre').value = nombre;
+  document.getElementById('editarAlumnoEmail').value = email || '';
+  const alerta = document.getElementById('alertaEditarAlumno');
+  if (alerta) alerta.style.display = 'none';
+  abrirModal('modalEditarAlumno');
+}
+
+async function guardarEdicionAlumno() {
+  const id = document.getElementById('editarAlumnoId').value;
+  const legajo = document.getElementById('editarAlumnoLegajo').value.trim();
+  const nombre = document.getElementById('editarAlumnoNombre').value.trim();
+  const email = document.getElementById('editarAlumnoEmail').value.trim();
+  const alerta = document.getElementById('alertaEditarAlumno');
+
+  if (!legajo || !nombre) {
+    if (alerta) {
+      alerta.innerText = 'Legajo y Nombre son obligatorios.';
+      alerta.style.display = 'block';
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/alumnos/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ legajo_dni: legajo, nombre_completo: nombre, email })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      cerrarModal('modalEditarAlumno');
+      if (cursoDocenteActivoId) {
+        seleccionarCursoDocente(cursoDocenteActivoId);
+      }
+      cargarCursosDocente();
+    } else {
+      if (alerta) {
+        alerta.innerText = data.error || 'Error al actualizar alumno.';
+        alerta.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    if (alerta) {
+      alerta.innerText = 'Error de conexión: ' + err.message;
+      alerta.style.display = 'block';
+    }
+  }
+}
+
+// =======================================================
+// CORRECCIÓN INTERACTIVA DE ASISTENCIA EN MATRIZ (REPORTE)
+// =======================================================
+async function cambiarAsistenciaMatriz(celda, alumnoId, claseId, fecha) {
+  const estadoActual = celda.innerText.trim();
+  let nuevoEstado = 'PRESENTE';
+  let nuevaLetra = 'P';
+  let nuevaClase = 'matrix-cell-P';
+
+  if (estadoActual === 'P') {
+    nuevoEstado = 'TARDE';
+    nuevaLetra = 'T';
+    nuevaClase = 'matrix-cell-T';
+  } else if (estadoActual === 'T') {
+    nuevoEstado = 'AUSENTE';
+    nuevaLetra = 'A';
+    nuevaClase = 'matrix-cell-A';
+  } else {
+    nuevoEstado = 'PRESENTE';
+    nuevaLetra = 'P';
+    nuevaClase = 'matrix-cell-P';
+  }
+
+  // Actualización visual inmediata
+  celda.className = `${nuevaClase} matrix-cell-editable`;
+  celda.innerText = nuevaLetra;
+
+  // Recalcular totales de la fila
+  const fila = celda.closest('tr');
+  if (fila) {
+    const celdasFecha = fila.querySelectorAll('.matrix-cell-editable');
+    let p = 0, t = 0, a = 0;
+    celdasFecha.forEach(td => {
+      const txt = td.innerText.trim();
+      if (txt === 'P') p++;
+      else if (txt === 'T') t++;
+      else a++;
+    });
+
+    const totalClases = celdasFecha.length;
+    const puntos = p + (t * 0.5);
+    const pct = totalClases > 0 ? Math.round((puntos / totalClases) * 100) : 0;
+
+    const celdasFila = fila.children;
+    const numCols = celdasFila.length;
+    if (numCols >= 5) {
+      // Últimas 5 columnas: Total Clases, Presentes, Tardes, Ausentes, % Asistencia
+      celdasFila[numCols - 4].innerText = p;
+      celdasFila[numCols - 3].innerText = t;
+      celdasFila[numCols - 2].innerText = a;
+      const colPct = celdasFila[numCols - 1];
+      colPct.innerText = `${pct}%`;
+      colPct.style.color = pct >= 75 ? '#059669' : '#dc2626';
+    }
+  }
+
+  // Guardar en la base de datos
+  try {
+    const res = await fetch('/api/asistencias/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clase_id: claseId, alumno_id: alumnoId, estado: nuevoEstado, fecha })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert('Error al guardar asistencia: ' + data.error);
+    }
+  } catch (err) {
+    console.error('Error guardando asistencia en matriz:', err);
+  }
 }
