@@ -250,7 +250,8 @@ async function onScanQrAlumno(codigoDecodificado) {
         legajo_dni: alumnoActual.legajo_dni,
         curso_id: cursoAlumnoActual.id,
         codigo_escaneado: codigoDecodificado,
-        dispositivo_id: obtenerOcrearDeviceId()
+        dispositivo_id: obtenerOcrearDeviceId(),
+        hora_local: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       })
     });
     const data = await res.json();
@@ -388,11 +389,13 @@ function cambiarPestanaDocente(pestana) {
   const tab = document.getElementById(`tabDocente-${pestana}`);
   if (tab) tab.classList.add('active');
 
-  const idx = pestana === 'proyector' ? 0 : (pestana === 'nomina' ? 1 : (pestana === 'cursos' ? 2 : 3));
+  const tabIndex = { proyector: 0, nomina: 1, cursos: 2, clases: 3, reportes: 4 };
+  const idx = tabIndex[pestana] !== undefined ? tabIndex[pestana] : 0;
   const btn = document.querySelectorAll('#navTabsDocente .nav-tab')[idx];
   if (btn) btn.classList.add('active');
 
   if (pestana === 'nomina') recargarNominaDia();
+  if (pestana === 'clases') cargarClasesCurso();
 }
 
 // =======================================================
@@ -598,6 +601,7 @@ function actualizarSelectoresDocente() {
   const selProy = document.getElementById('selectCursoProyector');
   const selRep = document.getElementById('selectCursoReporteDocente');
   const selNom = document.getElementById('selectCursoNomina');
+  const selClases = document.getElementById('selectCursoClases');
 
   const options = ['<option value="">-- Selecciona un Curso --</option>'];
   cursos.forEach(c => {
@@ -620,6 +624,10 @@ function actualizarSelectoresDocente() {
   if (selNom) {
     selNom.innerHTML = html;
     if (cursos.length > 0) selNom.value = cursos[0].id;
+  }
+  if (selClases) {
+    selClases.innerHTML = html;
+    if (cursos.length > 0) selClases.value = cursos[0].id;
   }
 }
 
@@ -1064,5 +1072,161 @@ async function cambiarAsistenciaMatriz(celda, alumnoId, claseId, fecha) {
     }
   } catch (err) {
     console.error('Error guardando asistencia en matriz:', err);
+  }
+}
+
+// =======================================================
+// GESTIÓN DE CLASES (CORRECCIÓN DE FECHAS Y ELIMINACIÓN)
+// =======================================================
+
+async function cargarClasesCurso() {
+  const sel = document.getElementById('selectCursoClases');
+  const cursoId = sel && sel.value;
+  const tbody = document.getElementById('tablaClasesCuerpo');
+  const alerta = document.getElementById('alertaGestionClases');
+
+  if (!cursoId) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:2rem;">Seleccioná un curso para ver las clases.</td></tr>';
+    return;
+  }
+
+  if (alerta) alerta.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/cursos/${cursoId}/clases`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    const clases = data.clases;
+    if (!tbody) return;
+
+    if (clases.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:2rem;">No hay clases registradas para este curso.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = clases.map(c => {
+      const [anio, mes, dia] = c.fecha.split('-');
+      const fechaFormateada = `${dia}/${mes}/${anio}`;
+      const estadoBadge = c.asistencia_activa
+        ? `<span style="background:#d1fae5;color:#065f46;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;font-weight:700;">🟢 Activa</span>`
+        : `<span style="background:#f1f5f9;color:#64748b;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.8rem;">Cerrada</span>`;
+      return `
+        <tr>
+          <td style="font-weight:600;">${fechaFormateada}</td>
+          <td style="text-align:center;color:#059669;font-weight:700;">${c.total_presentes}</td>
+          <td style="text-align:center;color:#d97706;font-weight:700;">${c.total_tardes}</td>
+          <td style="text-align:center;">${c.total_registros}</td>
+          <td style="text-align:center;">${estadoBadge}</td>
+          <td style="text-align:center;">
+            <button class="btn btn-secondary btn-sm" style="margin-right:0.4rem;" onclick="abrirModalCambiarFecha(${c.id}, '${c.fecha}')">✏️ Cambiar Fecha</button>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;" onclick="eliminarClase(${c.id}, '${fechaFormateada}', ${c.total_registros})">🗑️ Eliminar</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+  } catch (err) {
+    if (alerta) {
+      alerta.style.display = 'block';
+      alerta.style.background = '#fee2e2';
+      alerta.style.color = '#991b1b';
+      alerta.innerText = 'Error al cargar clases: ' + err.message;
+    }
+  }
+}
+
+function abrirModalCambiarFecha(claseId, fechaActual) {
+  const [anio, mes, dia] = fechaActual.split('-');
+  document.getElementById('cambiarFechaClaseId').value = claseId;
+  document.getElementById('cambiarFechaClaseActual').innerText = `${dia}/${mes}/${anio}`;
+  document.getElementById('cambiarFechaNueva').value = '';
+  const alerta = document.getElementById('alertaCambiarFecha');
+  if (alerta) alerta.style.display = 'none';
+  abrirModal('modalCambiarFechaClase');
+}
+
+async function confirmarCambioFechaClase() {
+  const claseId = document.getElementById('cambiarFechaClaseId').value;
+  const nuevaFecha = document.getElementById('cambiarFechaNueva').value;
+  const alerta = document.getElementById('alertaCambiarFecha');
+
+  if (!nuevaFecha) {
+    alerta.style.display = 'block';
+    alerta.style.background = '#fee2e2';
+    alerta.style.color = '#991b1b';
+    alerta.innerText = 'Por favor seleccioná una fecha nueva.';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/clases/${claseId}/fecha`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nueva_fecha: nuevaFecha })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      cerrarModal('modalCambiarFechaClase');
+      const alertaPanel = document.getElementById('alertaGestionClases');
+      if (alertaPanel) {
+        alertaPanel.style.display = 'block';
+        alertaPanel.style.background = '#d1fae5';
+        alertaPanel.style.color = '#065f46';
+        alertaPanel.innerText = '✅ ' + data.mensaje;
+        setTimeout(() => { alertaPanel.style.display = 'none'; }, 5000);
+      }
+      await cargarClasesCurso();
+    } else {
+      alerta.style.display = 'block';
+      alerta.style.background = '#fee2e2';
+      alerta.style.color = '#991b1b';
+      alerta.innerText = data.error || 'Error al cambiar la fecha.';
+    }
+  } catch (err) {
+    alerta.style.display = 'block';
+    alerta.style.background = '#fee2e2';
+    alerta.style.color = '#991b1b';
+    alerta.innerText = 'Error de conexion: ' + err.message;
+  }
+}
+
+async function eliminarClase(claseId, fechaFormateada, totalRegistros) {
+  const msg = totalRegistros > 0
+    ? `Confirmar: Eliminar la clase del ${fechaFormateada}?\n\nEsto BORRARA permanentemente ${totalRegistros} registro(s) de asistencia.\n\nEsta accion NO se puede deshacer.`
+    : `Eliminar la clase del ${fechaFormateada}? No tiene registros de asistencia.`;
+
+  if (!confirm(msg)) return;
+
+  const alertaPanel = document.getElementById('alertaGestionClases');
+
+  try {
+    const res = await fetch(`/api/clases/${claseId}`, { method: 'DELETE' });
+    const data = await res.json();
+
+    if (data.success) {
+      if (alertaPanel) {
+        alertaPanel.style.display = 'block';
+        alertaPanel.style.background = '#d1fae5';
+        alertaPanel.style.color = '#065f46';
+        alertaPanel.innerText = 'Clase eliminada: ' + data.mensaje;
+        setTimeout(() => { alertaPanel.style.display = 'none'; }, 5000);
+      }
+      await cargarClasesCurso();
+    } else {
+      if (alertaPanel) {
+        alertaPanel.style.display = 'block';
+        alertaPanel.style.background = '#fee2e2';
+        alertaPanel.style.color = '#991b1b';
+        alertaPanel.innerText = 'Error: ' + (data.error || 'Error al eliminar la clase.');
+      }
+    }
+  } catch (err) {
+    if (alertaPanel) {
+      alertaPanel.style.display = 'block';
+      alertaPanel.style.background = '#fee2e2';
+      alertaPanel.style.color = '#991b1b';
+      alertaPanel.innerText = 'Error de conexion: ' + err.message;
+    }
   }
 }

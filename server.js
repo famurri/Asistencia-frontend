@@ -442,7 +442,11 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
     }
 
     // 5. Guardar la asistencia como PRESENTE con el dispositivo_id
-    const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    // Usar la hora local del dispositivo del alumno si la envió; si no, usar la del servidor como respaldo
+    const { hora_local } = req.body;
+    const hora = hora_local && hora_local.trim()
+      ? hora_local.trim()
+      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     await db.runAsync(`
       INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo, dispositivo_id)
@@ -724,7 +728,10 @@ app.post('/api/asistencias/manual', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No se encontró la clase especificada' });
     }
 
-    const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const { hora_local: hora_local_manual } = req.body;
+    const hora = hora_local_manual && hora_local_manual.trim()
+      ? hora_local_manual.trim()
+      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     await db.runAsync(`
       INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo)
@@ -740,7 +747,119 @@ app.post('/api/asistencias/manual', async (req, res) => {
 });
 
 // ==========================================
-// 7. REPORTES Y EXPORTACIÓN A EXCEL (.XLSX)
+// 7. GESTIÓN DE CLASES (CORRECCIÓN DE FECHAS)
+// ==========================================
+
+// Listar todas las clases de un curso con cantidad de asistencias
+app.get('/api/cursos/:cursoId/clases', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const clases = await db.allAsync(`
+      SELECT c.id, c.fecha, c.asistencia_activa,
+        COUNT(CASE WHEN a.estado = 'PRESENTE' THEN 1 END) AS total_presentes,
+        COUNT(CASE WHEN a.estado = 'TARDE' THEN 1 END) AS total_tardes,
+        COUNT(CASE WHEN a.estado = 'AUSENTE' THEN 1 END) AS total_ausentes,
+        COUNT(a.id) AS total_registros
+      FROM clases c
+      LEFT JOIN asistencias a ON a.clase_id = c.id
+      WHERE c.curso_id = ?
+      GROUP BY c.id
+      ORDER BY c.fecha DESC
+    `, [cursoId]);
+    res.json({ success: true, clases });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Cambiar la fecha de una clase. Si ya existe una clase en la fecha destino,
+// mueve las asistencias hacia ella (por alumno, sin duplicados) y elimina la clase origen.
+app.put('/api/clases/:id/fecha', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nueva_fecha } = req.body;
+    if (!nueva_fecha) {
+      return res.status(400).json({ success: false, error: 'nueva_fecha es obligatoria' });
+    }
+
+    const claseOrigen = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [id]);
+    if (!claseOrigen) {
+      return res.status(404).json({ success: false, error: 'Clase no encontrada' });
+    }
+
+    if (claseOrigen.fecha === nueva_fecha) {
+      return res.status(400).json({ success: false, error: 'La fecha nueva es igual a la actual' });
+    }
+
+    // Ver si ya existe una clase en la fecha destino para el mismo curso
+    const claseDestino = await db.getAsync(
+      `SELECT * FROM clases WHERE curso_id = ? AND fecha = ?`,
+      [claseOrigen.curso_id, nueva_fecha]
+    );
+
+    if (claseDestino) {
+      // Mover asistencias de origen a destino (solo las que no existen ya en destino)
+      await db.runAsync(`
+        INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo, dispositivo_id)
+        SELECT ?, alumno_id, estado, hora_registro, metodo, dispositivo_id
+        FROM asistencias
+        WHERE clase_id = ?
+        AND alumno_id NOT IN (SELECT alumno_id FROM asistencias WHERE clase_id = ?)
+      `, [claseDestino.id, claseOrigen.id, claseDestino.id]);
+
+      // Eliminar asistencias de la clase origen
+      await db.runAsync(`DELETE FROM asistencias WHERE clase_id = ?`, [claseOrigen.id]);
+      // Eliminar la clase origen
+      await db.runAsync(`DELETE FROM clases WHERE id = ?`, [claseOrigen.id]);
+
+      res.json({
+        success: true,
+        mensaje: `Las asistencias fueron movidas a la clase del ${nueva_fecha} y la clase errónea fue eliminada.`,
+        clase_id: claseDestino.id
+      });
+    } else {
+      // Simplemente actualizar la fecha de la clase
+      await db.runAsync(`UPDATE clases SET fecha = ? WHERE id = ?`, [nueva_fecha, id]);
+      res.json({
+        success: true,
+        mensaje: `Fecha de la clase actualizada a ${nueva_fecha}.`,
+        clase_id: parseInt(id)
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Eliminar una clase y todas sus asistencias
+app.delete('/api/clases/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const clase = await db.getAsync(`SELECT * FROM clases WHERE id = ?`, [id]);
+    if (!clase) {
+      return res.status(404).json({ success: false, error: 'Clase no encontrada' });
+    }
+
+    // Si la clase está activa en sesión, cerrarla
+    const sesion = sesionesActivas.get(parseInt(clase.curso_id));
+    if (sesion && sesion.claseId === parseInt(id)) {
+      if (sesion.timer) clearTimeout(sesion.timer);
+      sesion.sseClientes.forEach(c => {
+        try { c.write(`data: ${JSON.stringify({ tipo: 'SESION_PAUSADA' })}\n\n`); } catch(e) {}
+      });
+      sesionesActivas.delete(parseInt(clase.curso_id));
+    }
+
+    await db.runAsync(`DELETE FROM asistencias WHERE clase_id = ?`, [id]);
+    await db.runAsync(`DELETE FROM clases WHERE id = ?`, [id]);
+    res.json({ success: true, mensaje: 'Clase y todas sus asistencias fueron eliminadas.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 8. REPORTES Y EXPORTACIÓN A EXCEL (.XLSX)
 // ==========================================
 async function compilarMatrizAsistencia(cursoId, desde, hasta) {
   const curso = await db.getAsync(`SELECT * FROM cursos WHERE id = ?`, [cursoId]);

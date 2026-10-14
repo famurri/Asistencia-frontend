@@ -28,6 +28,9 @@
         <button class="nav-tab" onclick="cambiarPestanaDocente('cursos')">
           <span>👥</span> Cursos
         </button>
+        <button class="nav-tab" onclick="cambiarPestanaDocente('clases')">
+          <span>📅</span> Gestión de Clases
+        </button>
         <button class="nav-tab" onclick="cambiarPestanaDocente('reportes')">
           <span>📊</span> Reportes Excel
         </button>
@@ -293,7 +296,47 @@
       </div>
     </div>
 
-    <!-- PESTAÑA DOCENTE 4: REPORTES Y EXCEL -->
+    <!-- PESTAÑA DOCENTE 4: GESTIÓN DE CLASES -->
+    <div id="tabDocente-clases" class="tab-content">
+      <div class="top-bar">
+        <div class="form-group-inline">
+          <label for="selectCursoClases">Curso:</label>
+          <select id="selectCursoClases" onchange="cargarClasesCurso()"></select>
+        </div>
+        <button class="btn btn-secondary" onclick="cargarClasesCurso()">🔄 Actualizar</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>📅 Clases Registradas</h3>
+          <span style="font-size:0.8rem; background:#fef3c7; color:#92400e; padding:0.25rem 0.65rem; border-radius:6px; font-weight:600;">
+            ⚠️ Eliminar una clase borra todas las asistencias de ese día
+          </span>
+        </div>
+        <div class="card-body">
+          <div id="alertaGestionClases" style="display:none; padding:0.7rem 1rem; border-radius:8px; margin-bottom:1rem; font-weight:600;"></div>
+          <div class="table-responsive" style="max-height:520px; overflow-y:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th style="text-align:center;">Presentes</th>
+                  <th style="text-align:center;">Tardes</th>
+                  <th style="text-align:center;">Total Registros</th>
+                  <th style="text-align:center;">Estado</th>
+                  <th style="text-align:center;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tablaClasesCuerpo">
+                <tr><td colspan="6" style="text-align:center; color:#64748b; padding:2rem;">Seleccioná un curso para ver las clases.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESTAÑA DOCENTE 5: REPORTES Y EXCEL -->
     <div id="tabDocente-reportes" class="tab-content">
       <div class="top-bar">
         <div class="form-group-inline">
@@ -493,6 +536,35 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="cerrarModal('modalEditarAlumno')">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarEdicionAlumno()">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal: Cambiar Fecha de Clase -->
+  <div id="modalCambiarFechaClase" class="modal-backdrop">
+    <div class="modal" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3>📅 Cambiar Fecha de Clase</h3>
+        <button class="modal-close" onclick="cerrarModal('modalCambiarFechaClase')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cambiarFechaClaseId">
+        <p style="font-size:0.88rem; color:#475569; margin-bottom:1rem;">
+          Clase actual: <strong id="cambiarFechaClaseActual"></strong>
+        </p>
+        <div class="form-field">
+          <label for="cambiarFechaNueva">Nueva Fecha: *</label>
+          <input type="date" id="cambiarFechaNueva">
+        </div>
+        <div id="alertaCambiarFecha" style="display:none; padding:0.6rem; border-radius:6px; font-size:0.85rem; font-weight:600; margin-top:0.6rem;"></div>
+        <p style="font-size:0.8rem; color:#64748b; margin-top:0.8rem; background:#f1f5f9; padding:0.6rem; border-radius:6px;">
+          💡 Si ya existe una clase en la fecha destino, las asistencias de la clase actual se moverán a esa fecha y la clase errónea se eliminará automáticamente.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="cerrarModal('modalCambiarFechaClase')">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarCambioFechaClase()">Guardar Fecha</button>
       </div>
     </div>
   </div>
