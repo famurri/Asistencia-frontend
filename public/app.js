@@ -56,6 +56,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Comprobar cursos disponibles para la vista del alumno
   verificarClasesActivasAlumno();
+
+  // Reloj en vivo en la pantalla del proyector (se actualiza cada segundo)
+  function actualizarRelojProyector() {
+    const el = document.getElementById('relojProyector');
+    if (!el) return;
+    const n = new Date();
+    const hh = String(n.getHours()).padStart(2, '0');
+    const mm = String(n.getMinutes()).padStart(2, '0');
+    const ss = String(n.getSeconds()).padStart(2, '0');
+    el.textContent = `${hh}:${mm}:${ss}`;
+  }
+  actualizarRelojProyector();
+  setInterval(actualizarRelojProyector, 1000);
 });
 
 // =======================================================
