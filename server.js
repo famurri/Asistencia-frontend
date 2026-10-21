@@ -446,7 +446,7 @@ app.post('/api/alumnos/registrar-asistencia', async (req, res) => {
     const { hora_local } = req.body;
     const hora = hora_local && hora_local.trim()
       ? hora_local.trim()
-      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
 
     await db.runAsync(`
       INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo, dispositivo_id)
@@ -731,7 +731,7 @@ app.post('/api/asistencias/manual', async (req, res) => {
     const { hora_local: hora_local_manual } = req.body;
     const hora = hora_local_manual && hora_local_manual.trim()
       ? hora_local_manual.trim()
-      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      : new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
 
     await db.runAsync(`
       INSERT INTO asistencias (clase_id, alumno_id, estado, hora_registro, metodo)

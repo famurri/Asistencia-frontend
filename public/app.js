@@ -251,7 +251,7 @@ async function onScanQrAlumno(codigoDecodificado) {
         curso_id: cursoAlumnoActual.id,
         codigo_escaneado: codigoDecodificado,
         dispositivo_id: obtenerOcrearDeviceId(),
-        hora_local: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        hora_local: (() => { const n = new Date(); const hh = String(n.getHours()).padStart(2,'0'); const mm = String(n.getMinutes()).padStart(2,'0'); const ss = String(n.getSeconds()).padStart(2,'0'); return `${hh}:${mm}:${ss}`; })()
       })
     });
     const data = await res.json();
