@@ -109,13 +109,34 @@ async function verificarClasesActivasAlumno() {
     const data = await res.json();
     const selMateria = document.getElementById('selectMateriaAlumno');
     const campoMateria = document.getElementById('campoSeleccionMateriaAlumno');
+    const infoClase = document.getElementById('infoClaseActiva');
+    const textoClase = document.getElementById('textoClaseActivaInfo');
 
-    if (data.success && data.clases && data.clases.length > 1) {
-      selMateria.innerHTML = data.clases.map(c => `
-        <option value="${c.id}">${c.nombre} ${c.comision ? `(${c.comision})` : ''}</option>
-      `).join('');
-      campoMateria.style.display = 'block';
+    if (data.success && data.clases && data.clases.length > 0) {
+      // Mostrar info de la clase activa
+      const c = data.clases[0]; // si hay solo una
+      if (infoClase && textoClase) {
+        const fechaTexto = c.fecha ? (() => {
+          const [a, m, d] = c.fecha.split('-');
+          return `${d}/${m}/${a}`;
+        })() : '';
+        const comision = c.comision ? ` (${c.comision})` : '';
+        textoClase.innerText = `${c.nombre}${comision}${fechaTexto ? ' — ' + fechaTexto : ''}`;
+        infoClase.style.display = 'block';
+      }
+
+      if (data.clases.length > 1) {
+        selMateria.innerHTML = data.clases.map(c =>
+          `<option value="${c.id}">${c.nombre} ${c.comision ? `(${c.comision})` : ''}${c.fecha ? ' — ' + (() => { const [a,m,d]=c.fecha.split('-'); return `${d}/${m}/${a}`; })() : ''}</option>`
+        ).join('');
+        campoMateria.style.display = 'block';
+        // Si hay varias clases, el texto del banner muestra "Seleccioná tu materia"
+        if (textoClase) textoClase.innerText = 'Seleccioná tu materia en el campo de abajo';
+      } else {
+        campoMateria.style.display = 'none';
+      }
     } else {
+      if (infoClase) infoClase.style.display = 'none';
       campoMateria.style.display = 'none';
     }
   } catch (e) {}

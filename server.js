@@ -296,7 +296,12 @@ app.get('/api/alumnos/clases-activas', async (req, res) => {
       SELECT id, nombre, comision FROM cursos WHERE id IN (${placeholders})
     `, idsCursosActivos);
 
-    res.json({ success: true, clases: cursos });
+    const clasesConFecha = cursos.map(c => ({
+      ...c,
+      fecha: sesionesActivas.get(c.id) ? sesionesActivas.get(c.id).fecha : null
+    }));
+
+    res.json({ success: true, clases: clasesConFecha });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -366,7 +371,7 @@ app.post('/api/alumnos/validar-legajo', async (req, res) => {
       success: true,
       yaRegistrado: false,
       alumno: { id: alumno.id, nombre_completo: alumno.nombre_completo, legajo_dni: alumno.legajo_dni },
-      curso: { id: curso.id, nombre: curso.nombre, comision: curso.comision }
+      curso: { id: curso.id, nombre: curso.nombre, comision: curso.comision, fecha: sesionEncontrada.fecha }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

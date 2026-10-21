@@ -56,6 +56,12 @@
           <h2>Registro de Asistencia</h2>
           <p>Ingresa tu número de Legajo para identificarte y habilitar la cámara.</p>
 
+          <!-- Info de la clase activa -->
+          <div id="infoClaseActiva" style="display:none; background:#f0fdf4; border:1.5px solid #86efac; border-radius:10px; padding:0.7rem 1rem; margin-bottom:1rem; text-align:left;">
+            <div style="font-size:0.8rem; color:#059669; font-weight:700; margin-bottom:0.15rem; text-transform:uppercase; letter-spacing:0.04em;">Ud. está dando el presente en:</div>
+            <div id="textoClaseActivaInfo" style="font-size:1rem; font-weight:700; color:#065f46;"></div>
+          </div>
+
           <div class="form-field">
             <label for="inputLegajoAlumno">Legajo Universitario:</label>
             <input type="text" id="inputLegajoAlumno" placeholder="Ej: 42123456" 
