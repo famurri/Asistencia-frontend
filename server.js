@@ -121,7 +121,10 @@ app.post('/api/auth/reset-emergencia', async (req, res) => {
     if (clave_maestra !== 'reset_asistencia_2026') {
       return res.status(403).json({ success: false, error: 'Clave maestra incorrecta' });
     }
-    await db.runAsync(`UPDATE configuracion SET valor = 'profesor2026' WHERE clave = 'password_docente'`);
+    await db.runAsync(`
+      INSERT INTO configuracion (clave, valor) VALUES ('password_docente', 'profesor2026')
+      ON CONFLICT (clave) DO UPDATE SET valor = 'profesor2026'
+    `);
     res.json({ success: true, mensaje: 'Contraseña reseteada a: profesor2026' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
